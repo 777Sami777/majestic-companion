@@ -170,7 +170,7 @@ $("#autostart").addEventListener("change", async (e) => { e.target.checked = awa
 $("#tray").addEventListener("change", (e) => set({ trayOnClose: e.target.checked }));
 $("#upd").addEventListener("click", async () => {
   const r = await Host.call("check_update");
-  if (!r) return say("Aktualizacje będą działać, gdy aplikacja dostanie stronę na GitHubie.");
+  if (!r) return say("Nie udało się sprawdzić aktualizacji: repozytorium jest prywatne albo nie ma internetu.");
   say(r.newer ? `Jest nowa wersja ${r.latest} (masz ${r.current}). Otwieram stronę pobierania…` : `Masz najnowszą wersję (${r.current}).`);
   if (r.newer) Host.call("open_url", r.url);
 });
