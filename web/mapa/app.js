@@ -304,14 +304,26 @@ $("#q").addEventListener("input", (e) => {
   if (!q) return;
   if (q.startsWith("mjm:")) { $("#result-list").innerHTML = `<li class="empty">Naciśnij Enter, żeby dodać znacznik z kodu.</li>`; return; }
   const hits = state.markers.filter((m) => norm(m.name + " " + (m.note || "") + " " + (catById[m.cat]?.name || "")).includes(q)).slice(0, 60);
-  $("#result-list").innerHTML = hits.length ? hits.map((m, i) => placeRow(m, i)).join("") : `<li class="empty">Nic nie znaleziono dla „${esc(e.target.value)}”.</li>`;
+  // adresy z warstw wiki: domy, biznesy, bankomaty, strefy (np. „Dom #1556”, „Bankomat #90”)
+  const addr = [];
+  for (const [slug, items] of Object.entries(wikiData?.layers || {})) {
+    if (slug === "captures" || addr.length >= 30) continue;
+    for (const it of items) { if (it.t === "p" && it.n && norm(it.n).replace(/#/g, "").includes(q.replace(/#/g, ""))) { addr.push([slug, it]); if (addr.length >= 30) break; } }
+  }
+  const addrHtml = addr.map(([slug, it]) => `<li><button class="place addr" data-goto="${it.c[0]},${it.c[1]}" data-label="${esc(plName(it.n))}" style="--c:${WIKI[slug]?.color || "#94a3b8"}"><i></i><span>${esc(plName(it.n))}</span><small>${esc(WIKI[slug]?.name || "")}</small></button></li>`).join("");
+  $("#result-list").innerHTML = hits.length || addr.length ? hits.map((m, i) => placeRow(m, i)).join("") + addrHtml : `<li class="empty">Nic nie znaleziono dla „${esc(e.target.value)}”.</li>`;
 });
 $("#q").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && e.target.value.trim().startsWith("MJM:")) { importCode(e.target.value.trim()); e.target.value = ""; e.target.dispatchEvent(new Event("input")); return; }
-  if (e.key === "Enter") { const first = $("#result-list .place"); if (first) select(first.dataset.id, true); }
+  if (e.key === "Enter") { const first = $("#result-list .place"); if (first) first.dataset.goto ? goAddr(first) : select(first.dataset.id, true); }
   if (e.key === "Escape") { e.target.value = ""; e.target.dispatchEvent(new Event("input")); e.target.blur(); }
 });
-$("#result-list").addEventListener("click", (e) => { const p = e.target.closest(".place"); if (p) select(p.dataset.id, true); });
+function goAddr(b) {
+  const [x, y] = b.dataset.goto.split(",").map(Number), ll = toLL(x, y);
+  fly(ll, 4.5);
+  L.popup({ className: "cd-pop" }).setLatLng(ll).setContent(`<b>${esc(b.dataset.label)}</b>`).openOn(map);
+}
+$("#result-list").addEventListener("click", (e) => { const p = e.target.closest(".place"); if (!p) return; p.dataset.goto ? goAddr(p) : select(p.dataset.id, true); });
 
 /* ---------- wybór i karta ---------- */
 function select(id, flyTo) {
@@ -1298,7 +1310,7 @@ async function crewOpen(msg) {
 function crewApply(ev) {
   if (!ev || ev.from === crewId) return;
   if (ev.op === "hello") { crewPing(); return crewSnapshot(); }
-  if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20) }; return renderCrewPeople(); }
+  if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20), h: +ev.h || 0, net: +ev.net || 0 }; return renderCrewPeople(); }
   if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
   if (ev.op === "pin" && Number.isFinite(ev.x) && Number.isFinite(ev.y)) return showCrewPin(ev);
   if (ev.op === "store" && Array.isArray(ev.items)) { window.parent.postMessage({ __toEkipa: { store: ev.items.slice(0, 200), by: ev.by } }, "*"); return; }
@@ -1360,12 +1372,24 @@ function crewDisconnect(silent) {
 const crewSeen = {};
 let crewGame = { running: false };
 Host.onGame((g) => { const was = crewGame.running; crewGame = g; if (crew && was !== g.running) crewPing(); });
-function crewPing() { if (crew) crewSend({ op: "ping", by: crewNick(), on: !!crewGame.running, srv: crewGame.session?.server || "" }); }
+const weekStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() - ((d.getDay() + 6) % 7) * 86400000; };
+let crewHours = 0;
+async function crewWeek() { try { const ws = weekStart(); crewHours = (await Host.call("sessions")).sessions.filter((s) => s.connected && s.joined >= ws).reduce((a, s) => a + s.played, 0) / 3600; } catch {} }
+function crewPing() {
+  if (!crew) return;
+  let net = 0; try { const ws = weekStart(); net = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= ws).reduce((a, l) => a + l.amt, 0); } catch {}
+  crewSend({ op: "ping", by: crewNick(), on: !!crewGame.running, srv: crewGame.session?.server || "", h: Math.round(crewHours * 10) / 10, net });
+}
+crewWeek(); setInterval(crewWeek, 600000);
 setInterval(crewPing, 60000);
 function renderCrewPeople() {
   const el = document.getElementById("crew-people"); if (!el) return;
   const now = Date.now(), list = Object.entries(crewSeen).filter(([, v]) => now - v.t < 180000).sort((a, b) => b[1].on - a[1].on);
   el.innerHTML = list.length ? list.map(([n, v]) => `<li class="${v.on ? "on" : ""}"><i></i><span>${esc(n)}</span><small>${v.on ? "10-8 · " + esc(v.srv || "w grze") : "10-7 · poza grą"}</small></li>`).join("") : `<li class="none">Nikt inny nie jest teraz połączony.</li>`;
+  const rk = document.getElementById("crew-rank"); if (!rk) return;
+  const me = crewNick(); let myNet = 0; try { const ws = weekStart(); myNet = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= ws).reduce((a, l) => a + l.amt, 0); } catch {}
+  const all = [[me + " (ty)", { h: Math.round(crewHours * 10) / 10, net: myNet }], ...Object.entries(crewSeen).filter(([n]) => n !== me)].sort((a, b) => b[1].net - a[1].net);
+  rk.innerHTML = all.map(([n, v], i) => `<li><b>${i + 1}.</b> <span>${esc(n)}</span><small>${v.h || 0} h · $${Math.round(v.net || 0).toLocaleString("pl-PL")}</small></li>`).join("");
 }
 setInterval(renderCrewPeople, 30000);
 /* czat ekipy i pinezka „tu jestem” (widoczna 10 minut) */
@@ -1388,7 +1412,7 @@ function renderCrew(st) {
   $("#crew-box").innerHTML = crew
     ? `<p class="crew-st ${st}"><i></i>${st === "on" ? "Połączono z mapą ekipy" : st === "err" ? "Brak połączenia, ponawiam…" : "Łączenie…"}</p>
        <small>Twoje znaczniki widzi każdy z tym samym kodem. Szyfrowane kodem ekipy.</small>
-       <ul class="crew-people" id="crew-people"></ul>
+       <ul class="crew-people" id="crew-people"></ul><h3 style="margin:10px 0 4px;font-size:12px;opacity:.75">Ranking tygodnia (godziny · na czysto)</h3><ul class="crew-people" id="crew-rank"></ul>
        <button class="link" id="crew-pin-btn" type="button">Pokaż ekipie, gdzie jestem (10 min)</button>
        <ul class="crew-chat" id="crew-chat" aria-live="polite"></ul>
        <form id="crew-say" class="crew-say" autocomplete="off"><input name="t" maxlength="300" placeholder="Wiadomość do ekipy…" aria-label="Wiadomość do ekipy"><button class="copy-btn">Wyślij</button></form>

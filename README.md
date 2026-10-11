@@ -10,16 +10,16 @@ Darmowa aplikacja na Windows dla graczy serwera **Majestic RP** (GTA V). Mapa ze
 
 | Zakładka | Funkcje |
 |---|---|
-| **Dziś** | Czas gry, zarobek na czysto, minutniki, gracze na serwerze, grafik ekipy, notatki i cele tygodnia na jednym ekranie |
-| **Mapa** | 396 miejsc z Majestic Wiki, warstwy wiki (terytoria gangów, skrytki, zbieractwo, fotoradary, airdropy), własne znaczniki ze zrzutami ekranu, trasy i strefy, trasa przez strefy zbierania, przypomnienie o odnowieniu strefy, zmiany terytoriów, grupowanie znaczników, zdjęcie mapy do schowka |
+| **Dziś** | Czas gry, zarobek na czysto, minutniki, gracze na serwerze, grafik ekipy, kalendarz miesiąca, notatki i cele tygodnia na jednym ekranie |
+| **Mapa** | 396 miejsc z Majestic Wiki, warstwy wiki (terytoria gangów, skrytki, zbieractwo, fotoradary, airdropy), własne znaczniki ze zrzutami ekranu, trasy i strefy, trasa przez strefy zbierania, przypomnienie o odnowieniu strefy, zmiany terytoriów, grupowanie znaczników, zdjęcie mapy do schowka, wyszukiwanie adresów, ranking ekipy tygodnia |
 | **Kontakty** | Numery, frakcje, długi, historia, powiązanie z miejscem na mapie |
 | **Statystyki** | Czas gry z logów launchera, liczba graczy na żywo, godziny szczytu, newsy Majestic |
 | **Minutniki** | Cooldowny i wypłaty z powiadomieniem Windows |
 | **Zarobki** | Zarobki, licznik sztuk × cena, wydatki, $/godz. dla każdej pracy |
-| **Teksty RP** | Gotowe /me i /do, własne teksty, dziennik postaci |
+| **Postać i RP** | Karta postaci (też jako obrazek), generator, gotowe /me i /do, słownik, dziennik |
 | **Ekipa** | Grafik z przypomnieniami, magazyn, raport na Discorda, kod ekipy |
 
-Do tego: wyszukiwarka w całej aplikacji (**Ctrl+Space**), szybka notatka w grze (**Ctrl+Shift+N**), nakładka nad grą (**F10**), mini-widżet, 6 motywów, ikona w zasobniku, start z Windowsem i paczka danych dla kolegi.
+Do tego: wyszukiwarka w całej aplikacji (**Ctrl+Space**), szybka notatka w grze (**Ctrl+Shift+N**), nakładka nad grą (**F10**), mini-widżet, 12 motywów (w tym LSPD, EMS i gangi), samouczek, wersja angielska, ikona w zasobniku, start z Windowsem i paczka danych dla kolegi.
 
 ![Mapa](docs/mapa.jpg)
 

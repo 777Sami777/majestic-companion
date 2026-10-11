@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -341,25 +341,17 @@ class Api:
         os.makedirs(out_dir, exist_ok=True)
         path = os.path.join(out_dir, dt.datetime.now().strftime("mapa_%Y-%m-%d_%H-%M-%S.png"))
         img.save(path)
-        buf = io.BytesIO()
-        img.save(buf, "BMP")
-        data = buf.getvalue()[14:]  # CF_DIB = BMP bez nagłówka pliku
-        k32, u32 = ctypes.windll.kernel32, ctypes.windll.user32
-        k32.GlobalAlloc.restype = ctypes.c_void_p
-        k32.GlobalLock.restype = ctypes.c_void_p
-        k32.GlobalLock.argtypes = k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
-        u32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
-        copied = False
-        if u32.OpenClipboard(None):
-            try:
-                u32.EmptyClipboard()
-                hmem = k32.GlobalAlloc(0x0002, len(data))
-                ctypes.memmove(k32.GlobalLock(hmem), data, len(data))
-                k32.GlobalUnlock(hmem)
-                copied = bool(u32.SetClipboardData(8, hmem))
-            finally:
-                u32.CloseClipboard()
-        return {"path": path, "copied": copied}
+        return {"path": path, "copied": _image_to_clipboard(img)}
+
+    def copy_image(self, data_url, name="karta"):
+        """Obraz z aplikacji (np. karta postaci): zapis do Obrazy/Majestic i kopia do schowka."""
+        raw = base64.b64decode(str(data_url).split(",", 1)[1])
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+        out_dir = os.path.join(HOME, "Pictures", "Majestic")
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, dt.datetime.now().strftime(f"{re.sub(r'[^a-z0-9_-]', '', name.lower()) or 'obraz'}_%Y-%m-%d_%H-%M-%S.png"))
+        img.save(path)
+        return {"path": path, "copied": _image_to_clipboard(img)}
 
     def toggle_note(self):
         if getattr(self, "_note", None):
@@ -825,6 +817,30 @@ def load_settings():
             return {**DEFAULT_SETTINGS, **json.load(f)}
     except (FileNotFoundError, ValueError):
         return dict(DEFAULT_SETTINGS)
+
+
+def _image_to_clipboard(img):
+    """Kopiuje obraz PIL do schowka Windows (CF_DIB); zwraca True, gdy się udało."""
+    import ctypes
+    buf = io.BytesIO()
+    img.save(buf, "BMP")
+    data = buf.getvalue()[14:]  # CF_DIB = BMP bez nagłówka pliku
+    k32, u32 = ctypes.windll.kernel32, ctypes.windll.user32
+    k32.GlobalAlloc.restype = ctypes.c_void_p
+    k32.GlobalLock.restype = ctypes.c_void_p
+    k32.GlobalLock.argtypes = k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    u32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+    copied = False
+    if u32.OpenClipboard(None):
+        try:
+            u32.EmptyClipboard()
+            hmem = k32.GlobalAlloc(0x0002, len(data))
+            ctypes.memmove(k32.GlobalLock(hmem), data, len(data))
+            k32.GlobalUnlock(hmem)
+            copied = bool(u32.SetClipboardData(8, hmem))
+        finally:
+            u32.CloseClipboard()
+    return copied
 
 
 def _write_backup(path, data_json):

@@ -330,6 +330,23 @@ async function dailyJobs() {
     try { const r = await a.changelog_sync(); if (r.ok && r.new.length) a.notify("Nowa łatka Majestic", r.new[0] + " · szczegóły w Statystykach"); } catch {}
   }
 }
+const TOUR = [
+  ["Witaj w Majestic Companion", "Krótki przegląd w 5 krokach. Możesz go pominąć i włączyć ponownie w Ustawieniach."],
+  ["Zakładki po lewej", "Ctrl+1…0 przełącza zakładki. Dziś pokazuje zarobek, minutniki, kalendarz i zadania."],
+  ["Szukaj wszędzie", "Ctrl+Spacja otwiera wyszukiwarkę: zakładki, pojazdy, nieruchomości, przepisy."],
+  ["W grze", "Ctrl+Shift+N to szybka notatka, Ctrl+Shift+1…3 minutniki, F10 nakładka z PayDay."],
+  ["Ekipa", "Wpisz ten sam kod co znajomi w zakładce Mapa → Ekipa: wspólne znaczniki, czat i ranking tygodnia."],
+];
+function showTour() {
+  let i = 0; const o = document.createElement("div");
+  o.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:grid;place-items:center";
+  const draw = () => { o.innerHTML = `<div role="dialog" aria-modal="true" style="width:min(420px,90vw);background:var(--panel-solid,#0b1428);color:var(--text,#eee);border:1px solid var(--line-2);border-radius:8px;padding:22px"><small style="color:var(--text-3)">${i + 1} / ${TOUR.length}</small><h2 style="margin:6px 0 8px;font-family:Bahnschrift,Segoe UI">${TOUR[i][0]}</h2><p style="margin:0 0 18px;color:var(--text-2);line-height:1.5">${TOUR[i][1]}</p><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost small" data-t="x" type="button">Pomiń</button><button class="btn primary small" data-t="n" type="button">${i < TOUR.length - 1 ? "Dalej" : "Zaczynamy"}</button></div></div>`; o.querySelector("[data-t=n]").focus(); };
+  o.addEventListener("click", (e) => { const t = e.target.dataset.t; if (t === "x" || (t === "n" && ++i >= TOUR.length)) { o.remove(); store.set("majestic-samouczek-v1", true); } else if (t === "n") draw(); });
+  o.addEventListener("keydown", (e) => { if (e.key === "Escape") { o.remove(); store.set("majestic-samouczek-v1", true); } });
+  document.body.appendChild(o); draw();
+}
+window.addEventListener("message", (e) => { if (e.data && e.data.__tour) showTour(); });
+if (!store.get("majestic-samouczek-v1", false)) setTimeout(showTour, 1500);
 setTimeout(() => { weeklyChecks(); checkUpdate(); }, 12000);
 setTimeout(dailyJobs, 90000); setInterval(dailyJobs, 3600000);
 setInterval(weeklyChecks, 1800000);

@@ -88,7 +88,7 @@
         <label class="field wide"><span>Historia postaci</span><textarea name="story" maxlength="2000" placeholder="Skąd jest, co robiła, czego chce w Los Santos…"></textarea></label>
       </form>
     </div>
-    <div class="btns-row"><button class="btn ghost small" id="pc-copy" type="button">Kopiuj kartę</button><span class="hint-s">Zapisuje się sama.</span></div>
+    <div class="btns-row"><button class="btn ghost small" id="pc-copy" type="button">Kopiuj kartę</button><button class="btn ghost small" id="pc-img" type="button">Zapisz jako obrazek</button><span class="hint-s">Zapisuje się sama.</span></div>
   </section>
   <section class="panel rise" style="--d:5"><h2>Generator postaci</h2>
     <div class="chips" id="gen-origin"><button class="chip on" data-o="pl" type="button">Polska</button><button class="chip" data-o="us" type="button">USA</button><button class="chip" data-o="latino" type="button">Latynos</button><button class="chip" data-o="ru" type="button">Europa Wsch.</button></div>
@@ -179,6 +179,26 @@ $("#pc-photo").addEventListener("click", async () => {
   if (r && r[0]) { pc.photo = r[0]; U.save(PKEY, pc); renderPc(); }
 });
 $("#pc-copy").addEventListener("click", () => U.copy([`Postać: ${pc.name || "—"}${pc.age ? ", " + pc.age + " lat" : ""}`, pc.faction ? "Frakcja: " + pc.faction : "", pc.job ? "Praca: " + pc.job : "", pc.story ? "\n" + pc.story : ""].filter(Boolean).join("\n"), "Skopiowano kartę postaci"));
+$("#pc-img").addEventListener("click", async () => {
+  const W = 900, H = 520, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d"), css = getComputedStyle(document.documentElement), v = (k, d) => css.getPropertyValue(k).trim() || d;
+  g.fillStyle = v("--bg-2", "#0b1428"); g.fillRect(0, 0, W, H);
+  g.fillStyle = v("--accent", "#2563eb"); g.fillRect(0, 0, W, 56);
+  g.fillStyle = v("--accent-ink", "#fff"); g.font = "bold 24px Bahnschrift, Segoe UI"; g.fillText("KARTA POSTACI · MAJESTIC RP", 28, 37);
+  const img = $("#pc-photo img");
+  if (img && img.complete && img.naturalWidth) { const s = Math.max(220 / img.naturalWidth, 290 / img.naturalHeight), w = img.naturalWidth * s, h = img.naturalHeight * s; g.save(); g.beginPath(); g.rect(28, 84, 220, 290); g.clip(); g.drawImage(img, 28 + (220 - w) / 2, 84 + (290 - h) / 2, w, h); g.restore(); }
+  else { g.strokeStyle = v("--line-2", "#444"); g.strokeRect(28, 84, 220, 290); }
+  const txt = v("--text", "#eee"), dim = v("--text-3", "#999"); let y = 104;
+  const row = (k, val) => { g.fillStyle = dim; g.font = "13px Segoe UI"; g.fillText(k.toUpperCase(), 280, y); g.fillStyle = txt; g.font = "bold 22px Bahnschrift, Segoe UI"; g.fillText(val || "—", 280, y + 26); y += 62; };
+  row("Imię i nazwisko", pc.name); row("Wiek", pc.age ? pc.age + " lat" : ""); row("Frakcja / organizacja", pc.faction); row("Praca", pc.job);
+  g.fillStyle = txt; g.font = "15px Segoe UI"; let line = "", ly = 412;
+  for (const w of (pc.story || "").replace(/\s+/g, " ").split(" ")) { if (g.measureText(line + w).width > W - 56) { g.fillText(line, 28, ly); ly += 22; line = ""; if (ly > H - 16) break; } line += w + " "; }
+  if (ly <= H - 16) g.fillText(line, 28, ly);
+  let url; try { url = c.toDataURL("image/png"); } catch { return U.toast("Nie udało się narysować zdjęcia"); }
+  if (!Host.available) { const a = document.createElement("a"); a.href = url; a.download = "karta.png"; return a.click(); }
+  const r = await Host.call("copy_image", url, "karta");
+  U.toast(r && r.path ? (r.copied ? "Obrazek w schowku i w Obrazy\\Majestic" : "Zapisano: " + r.path) : "Nie udało się zapisać");
+});
 if (Host.available) Host.call("shots_base").then((b) => { shotsBase = b; renderPc(); }).catch(() => {});
 renderPc();
 

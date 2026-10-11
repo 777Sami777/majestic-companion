@@ -50,12 +50,13 @@
   </section>
 
   <section class="panel rise" style="--d:2"><h2>Wygląd i wygoda</h2>
-    <div class="row"><div class="txt"><b>Motyw</b><small>Zmienia kolory całej aplikacji. Jasne motywy przydają się w dzień.</small></div><div class="chips" id="theme"><button class="chip" data-v="dark">MDT granat</button><button class="chip" data-v="weazel">Weazel News</button><button class="chip" data-v="noc">Nocny</button><button class="chip" data-v="wojsko">Wojskowy</button><button class="chip" data-v="szeryf">Szeryf</button><button class="chip" data-v="light">Jasny</button></div></div>
+    <div class="row"><div class="txt"><b>Motyw</b><small>Zmienia kolory całej aplikacji. Jasne motywy przydają się w dzień.</small></div><div class="chips" id="theme"><button class="chip" data-v="dark">MDT granat</button><button class="chip" data-v="weazel">Weazel News</button><button class="chip" data-v="noc">Nocny</button><button class="chip" data-v="wojsko">Wojskowy</button><button class="chip" data-v="szeryf">Szeryf</button><button class="chip" data-v="light">Jasny</button><button class="chip" data-v="lspd">LSPD</button><button class="chip" data-v="ems">EMS</button><button class="chip" data-v="ballas">Ballas</button><button class="chip" data-v="vagos">Vagos</button><button class="chip" data-v="families">Families</button><button class="chip" data-v="bloods">Bloods</button></div></div>
     <div class="row"><div class="txt"><b>Kolor akcentu</b><small>Przyciski, wyróżnienia i aktywna zakładka.</small></div><div class="sws" id="accent"></div></div>
     <div class="row"><div class="txt"><b>Dźwięki interfejsu</b><small>Ciche kliknięcie przy przyciskach.</small></div><label class="tog"><input type="checkbox" id="sounds"><i></i></label></div>
     <div class="row"><div class="txt"><b>Przypomnienie o przerwie</b><small>Powiadomienie, gdy jedna sesja trwa dłużej niż wybrany czas.</small></div><select id="breakH"><option value="0">Wyłączone</option><option value="1">Po 1 h</option><option value="2">Po 2 h</option><option value="3">Po 3 h</option><option value="4">Po 4 h</option></select></div>
+    <div class="row"><div class="txt"><b>Samouczek</b><small>Krótki przegląd skrótów i zakładek.</small></div><button class="btn ghost small" id="tour" type="button">Pokaż samouczek</button></div>
     <div class="row"><div class="txt"><b>Tryb streamera</b><small>Ukrywa kwoty pieniędzy, nick postaci i kody we wszystkich zakładkach, gdy nagrywasz albo streamujesz.</small></div><label class="tog"><input type="checkbox" id="streamer"><i></i></label></div>
-    <div class="row"><div class="txt"><b>Język / Language</b><small>English zmienia napisy interfejsu (wersja beta: część komunikatów zostaje po polsku).</small></div><div class="chips" id="lang"><button class="chip" data-l="pl">Polski</button><button class="chip" data-l="en">English</button></div></div>
+    <div class="row"><div class="txt"><b>Język / Language</b><small>English zmienia napisy interfejsu (część komunikatów z liczbami zostaje po polsku).</small></div><div class="chips" id="lang"><button class="chip" data-l="pl">Polski</button><button class="chip" data-l="en">English</button></div></div>
     <div class="row"><div class="txt"><b>Wielkość interfejsu</b><small>Powiększa albo zmniejsza tekst i przyciski we wszystkich zakładkach.</small></div><div class="chips" id="scale"><button class="chip" data-s="0.9">Kompaktowy</button><button class="chip" data-s="1">Normalny</button><button class="chip" data-s="1.1">Duży</button><button class="chip" data-s="1.2">Bardzo duży</button></div></div>
     <div class="row"><div class="txt"><b>Mini-widżet</b><small>Małe okienko na wierzchu z czasem sesji i najbliższym minutnikiem. Można je przeciągać.</small></div><button class="btn ghost small" id="widget">Pokaż widżet</button></div>
   </section>
@@ -178,6 +179,7 @@ $("#theme").addEventListener("click", (e) => { const b = e.target.closest("[data
 $("#accent").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) setLook({ accent: b.dataset.c }); });
 $("#sounds").addEventListener("change", (e) => setLook({ sounds: e.target.checked }));
 $("#breakH").addEventListener("change", (e) => setLook({ breakH: +e.target.value }));
+$("#tour").addEventListener("click", () => window.parent.postMessage({ __tour: true }, "*"));
 $("#streamer").addEventListener("change", (e) => { setLook({ streamer: e.target.checked }); window.parent.postMessage({ __reloadAll: true }, "*"); });
 /* kopia w chmurze */
 async function loadCloud() {
