@@ -1,0 +1,11 @@
+build/
+dist/
+release/
+raw/
+__pycache__/
+.claude/
+.impeccable/
+*.spec
+build.log
+tools/build.log
+*.zip

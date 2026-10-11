@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Majestic Notatka</title>
+<link rel="stylesheet" href="common.css">
+<style>
+html,body{height:100%;overflow:hidden}
+body::before{display:none}
+.n{display:grid;grid-template-rows:auto 1fr auto;height:100%;border:1px solid var(--line-2)}
+.n-top{display:flex;align-items:center;gap:10px;height:38px;padding:0 4px 0 12px;background:var(--bar,#132a4a);color:#f2f5fa}
+.n-top b{flex:1;font:600 13.5px var(--display);letter-spacing:.07em;text-transform:uppercase}
+.n-top button{width:32px;height:30px;border-radius:4px;display:grid;place-items:center;color:rgba(242,245,250,.85)}
+.n-top button:hover{background:rgba(255,255,255,.12)}
+textarea{border:0!important;border-radius:0!important;box-shadow:none!important;min-height:0;height:100%;resize:none;padding:12px 14px!important;font-size:14.5px;background:var(--bg-2)!important}
+.n-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-top:1px solid var(--line);font-size:12.5px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<div class="n">
+  <div class="n-top pywebview-drag-region"><b>Szybka notatka</b><button id="x" title="Zamknij (Ctrl+Shift+N)" aria-label="Zamknij"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <textarea id="t" placeholder="np. numer tablicy, kto był na akcji, cena u dilera…" aria-label="Treść notatki" autofocus></textarea>
+  <div class="n-foot"><span id="info">Enter zapisuje · Shift+Enter nowa linia</span><button class="btn primary small" id="save">Zapisz</button></div>
+</div>
+<script src="bridge.js"></script>
+<script src="common.js"></script>
+<script>
+(() => {
+"use strict";
+const KEY = "majestic-notatki-v1";
+const api = () => window.pywebview && window.pywebview.api;
+const t = document.getElementById("t");
+function save() {
+  const text = t.value.trim();
+  if (!text) return;
+  const list = U.load(KEY, []);
+  list.push({ id: U.uid(), t: text, at: Date.now() });
+  U.save(KEY, list);
+  t.value = "";
+  document.getElementById("info").textContent = `Zapisano (${list.length} notatek). Znajdziesz je w zakładce Dziś.`;
+}
+t.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); }
+  if (e.key === "Escape") api()?.toggle_note();
+});
+document.getElementById("save").onclick = save;
+document.getElementById("x").onclick = () => api()?.toggle_note();
+window.addEventListener("focus", () => t.focus());
+})();
+</script>
+</body>
+</html>

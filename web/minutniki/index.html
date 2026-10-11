@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minutniki</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+.preset{display:grid;gap:2px;padding:12px 14px;border-radius:8px;background:var(--card);border:1px solid var(--line);text-align:left;transition:transform .3s var(--ease),border-color .25s,background .25s}
+.preset:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--card-2)}
+.preset b{font:700 17px var(--display);letter-spacing:.03em}
+.preset small{color:var(--text-3);font-weight:700}
+.add{display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:10px;align-items:end;margin-top:16px}
+.add label.chk{display:flex;align-items:center;gap:8px;height:44px;padding:0 4px;color:var(--text-2);font-weight:700;white-space:nowrap}
+.add input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.timers{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.timer{position:relative;display:grid;justify-items:center;gap:8px;padding:22px 18px 16px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line);animation:rise .55s var(--ease) both;animation-delay:calc(var(--i) * 50ms)}
+.timer.done{border-color:color-mix(in srgb,var(--accent) 60%,transparent);animation:ring 1s var(--ease) 3}
+@keyframes ring{25%{transform:rotate(-1.5deg)}75%{transform:rotate(1.5deg)}}
+.dial{position:relative;width:150px;height:150px}
+.dial svg{width:150px;height:150px;transform:rotate(-90deg)}
+.dial circle{fill:none;stroke-width:9}
+.dial .bg{stroke:rgba(var(--fg-rgb),.07)}
+.dial .fg{stroke:var(--c,var(--accent));stroke-linecap:round;transition:stroke-dashoffset 1s linear}
+.dial .t{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.dial .t b{font:700 34px/1 var(--display);letter-spacing:.03em;font-variant-numeric:tabular-nums}
+.dial .t small{margin-top:4px;color:var(--text-3);font-weight:700;font-size:12px}
+.timer h3{margin:0;font:700 20px var(--display);letter-spacing:.03em;text-align:center}
+.timer .row{display:flex;gap:6px}
+.timer .x{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:6px;color:var(--text-3);display:grid;place-items:center;transition:background .2s,color .2s}
+.timer .x:hover{background:rgba(255,90,106,.12);color:#ff8a96}
+.note{color:var(--text-3);font-size:12.5px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Minutniki</h1><p class="sub">Odliczanie cooldownów, wypłat i opłat. Gdy czas minie, dostaniesz powiadomienie Windows, nawet z grą na pierwszym planie.</p></div></div>
+  <section class="panel rise" style="--d:1">
+    <h2>Szybkie</h2>
+    <div class="presets" id="presets"></div>
+    <form class="add" id="add" autocomplete="off">
+      <label class="field"><span>Nazwa</span><input type="text" name="name" maxlength="40" placeholder="np. Grzyby w Paleto"></label>
+      <label class="field"><span>Godziny</span><input type="number" name="h" min="0" max="72" value="0"></label>
+      <label class="field"><span>Minuty</span><input type="number" name="m" min="0" max="59" value="30"></label>
+      <label class="chk"><input type="checkbox" name="rep"> Powtarzaj</label>
+      <button class="btn primary">Start</button>
+    </form>
+  </section>
+  <section class="rise" style="--d:2"><div class="timers" id="timers"></div></section>
+  <p class="note">Minutniki liczą, gdy Majestic Companion jest włączony (może być zminimalizowany). Po ponownym uruchomieniu odliczanie wraca w to samo miejsce.</p>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc, uid } = U;
+const KEY = "majestic-minutniki-v1";
+const PRESETS = [
+  { name: "PayDay", min: 60, rep: true },
+  { name: "Grzyby / zbieractwo", min: 30 },
+  { name: "Łowienie ryb", min: 15 },
+  { name: "Skrytka kontrabandy", min: 120 },
+  { name: "Przerwa", min: 10 },
+  { name: "Opłata za dom", min: 24 * 60, rep: true },
+];
+const COLORS = ["#f5b544", "#3ddc97", "#4d8dff", "#ff7ac6", "#b07cff", "#2fd4d4"];
+let timers = U.load(KEY, []);
+const save = () => U.save(KEY, timers);
+
+function fmt(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`;
+}
+function start(name, minutes, rep) {
+  if (!(minutes > 0)) return U.toast("Ustaw czas większy niż zero");
+  timers.push({ id: uid(), name: name || "Minutnik", dur: minutes * 60000, end: Date.now() + minutes * 60000, rep: !!rep, c: COLORS[timers.length % COLORS.length] });
+  save(); render(); U.toast(`Start: ${name || "Minutnik"}`);
+}
+function render() {
+  $("#presets").innerHTML = PRESETS.map((p, i) => `<button class="preset" data-p="${i}"><b>${esc(p.name)}</b><small>${p.min >= 60 ? p.min / 60 + " h" : p.min + " min"}${p.rep ? " · powtarza" : ""}</small></button>`).join("");
+  $("#timers").innerHTML = timers.length ? timers.map((t, i) => `<div class="timer" data-id="${t.id}" style="--i:${i};--c:${t.c}">
+      <button class="x" data-act="del" title="Usuń"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div class="dial"><svg viewBox="0 0 150 150"><circle class="bg" cx="75" cy="75" r="66"/><circle class="fg" cx="75" cy="75" r="66" stroke-dasharray="414.7"/></svg>
+        <div class="t"><b class="left">--</b><small class="when"></small></div></div>
+      <h3>${esc(t.name)}</h3>
+      <div class="row"><button class="btn ghost small" data-act="restart">Od nowa</button><button class="btn ghost small" data-act="plus">+5 min</button></div>
+    </div>`).join("") : `<div class="panel empty"><b>Brak minutników</b>Kliknij jeden z gotowych albo ustaw własny czas.</div>`;
+  tick();
+}
+function tick() {
+  const now = Date.now();
+  for (const t of timers) {
+    const el = document.querySelector(`.timer[data-id="${t.id}"]`);
+    const left = t.end - now;
+    if (left <= 0 && !t.fired) {
+      t.fired = true; save();
+      Host.call("notify", "Minął czas: " + t.name, t.rep ? "Odliczam od nowa" : "Majestic Companion").catch(() => {});
+      beep();
+      if (el) el.classList.add("done");
+      if (t.rep) { t.end = now + t.dur; t.fired = false; save(); }
+    }
+    if (!el) continue;
+    el.querySelector(".left").textContent = left > 0 ? fmt(left) : "Koniec!";
+    el.querySelector(".when").textContent = left > 0 ? "o " + new Date(t.end).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) : "";
+    el.querySelector(".fg").style.strokeDashoffset = 414.7 * (1 - Math.max(0, left) / t.dur);
+  }
+}
+function beep() {
+  try {
+    const ctx = new AudioContext();
+    [0, 0.25, 0.5].forEach((d) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.15, ctx.currentTime + d); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.2); o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.22); });
+  } catch {}
+}
+$("#presets").addEventListener("click", (e) => { const b = e.target.closest("[data-p]"); if (b) { const p = PRESETS[b.dataset.p]; start(p.name, p.min, p.rep); } });
+$("#add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.target; start(f.name.value.trim(), (+f.h.value || 0) * 60 + (+f.m.value || 0), f.rep.checked); f.name.value = ""; });
+$("#timers").addEventListener("click", (e) => {
+  const a = e.target.closest("[data-act]"), card = e.target.closest(".timer"); if (!a || !card) return;
+  const t = timers.find((x) => x.id === card.dataset.id); if (!t) return;
+  if (a.dataset.act === "del") timers = timers.filter((x) => x !== t);
+  if (a.dataset.act === "restart") { t.end = Date.now() + t.dur; t.fired = false; }
+  if (a.dataset.act === "plus") { t.end = Math.max(t.end, Date.now()) + 5 * 60000; t.dur += 5 * 60000; t.fired = false; }
+  save(); render();
+});
+render();
+setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

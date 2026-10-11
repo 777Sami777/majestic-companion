@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statystyki gry</title>
+<style>
+:root{--fg-rgb:233,239,248;--bg:#0a1424;--bg-2:#0f1d33;--card:#13243e;--line:rgba(var(--fg-rgb),.07);--line-2:rgba(var(--fg-rgb),.13);--text:#e9eff8;--text-2:#b4c0d3;--text-3:#8d9bb3;--accent:#2563eb;--accent-ink:#ffffff;--good:#22c55e;--ease:cubic-bezier(.16,1,.3,1);--display:Bahnschrift,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:500 14px/1.45 "Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{overflow-y:auto;background:radial-gradient(1000px 600px at 90% -10%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 60%),var(--bg)}
+::selection{background:var(--accent);color:var(--accent-ink)}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+*{scrollbar-width:thin;scrollbar-color:rgba(var(--fg-rgb),.14) transparent}
+.wrap{max-width:1180px;margin:0 auto;padding:30px 34px 50px}
+.rise{animation:rise .7s var(--ease) both;animation-delay:calc(var(--d,0) * 70ms)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+
+.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:26px}
+h1{margin:0;font:700 30px/1.05 var(--display);letter-spacing:.03em;text-transform:uppercase}
+.status{display:inline-flex;align-items:center;gap:10px;margin-top:12px;padding:8px 14px 8px 12px;border-radius:6px;background:var(--bg-2);border:1px solid var(--line);font-weight:700;color:var(--text-2)}
+.status i{position:relative;width:10px;height:10px;border-radius:50%;background:#565c6c}
+.status.on{color:var(--good);background:rgba(61,220,151,.08);border-color:rgba(61,220,151,.25)}
+.status.on i{background:var(--good)}
+.status.on i::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--good);animation:live 2s ease-out infinite}
+@keyframes live{from{transform:scale(.5);opacity:1}to{transform:scale(1.8);opacity:0}}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:6px;background:rgba(var(--fg-rgb),.05);font-weight:700;font-size:13px;color:var(--text-2);transition:background .2s,color .2s}
+.btn:hover{background:rgba(var(--fg-rgb),.09);color:var(--text)}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+.stat{padding:18px 20px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line)}
+.stat label{display:block;font:600 12.5px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.stat b{display:block;margin-top:8px;font:700 38px/1 var(--display);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.stat small{display:block;margin-top:6px;color:var(--text-3);font-size:12.5px}
+.stat.lead b{color:var(--accent)}
+
+.panel{padding:22px 24px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line);margin-bottom:14px}
+.panel h2{margin:0 0 18px;font:600 13px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);display:flex;justify-content:space-between}
+.panel h2 span{letter-spacing:.04em;text-transform:none;font:700 13px "Segoe UI",sans-serif;color:var(--text-2)}
+.chart{display:grid;grid-template-columns:repeat(14,1fr);gap:8px;align-items:end;height:200px}
+.col{display:grid;grid-template-rows:1fr auto;gap:8px;height:100%;text-align:center}
+.bar-wrap{position:relative;display:flex;align-items:flex-end;justify-content:center}
+.bar{width:100%;max-width:40px;min-height:3px;border-radius:4px 7px 3px 3px;background:color-mix(in srgb,var(--accent) 85%,transparent);transform-origin:bottom;animation:grow .9s var(--ease) both;animation-delay:calc(var(--i) * 45ms + .25s);transition:background .2s}
+.bar.zero{background:rgba(var(--fg-rgb),.08)}
+.bar.today{background:var(--accent)}
+.col:hover .bar:not(.zero){background:color-mix(in srgb,var(--accent) 85%,#000)}
+.bar-wrap em{position:absolute;bottom:calc(var(--h) + 6px);font:700 12px var(--display);font-style:normal;color:var(--text-2);opacity:0;transition:opacity .2s;white-space:nowrap}
+.col:hover em{opacity:1}
+@keyframes grow{from{transform:scaleY(0)}}
+.col span{font:600 12px var(--display);letter-spacing:.06em;color:var(--text-3)}
+.col.today span{color:var(--accent)}
+
+.list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.sess{display:grid;grid-template-columns:120px 1fr auto auto;gap:16px;align-items:center;padding:12px 16px;border-radius:8px;background:var(--card);border:1px solid var(--line);animation:rise .5s var(--ease) both;animation-delay:calc(var(--i) * 30ms)}
+.sess time{font:700 16px var(--display);letter-spacing:.04em}
+.sess .hrs{color:var(--text-3);font-variant-numeric:tabular-nums}
+.sess .srv{padding:4px 10px;border-radius:4px;background:rgba(77,141,255,.14);color:#9cc0ff;font-weight:700;font-size:12.5px}
+.sess .dur{font:700 18px var(--display);letter-spacing:.03em;min-width:80px;text-align:right;font-variant-numeric:tabular-nums}
+.sess.fail{opacity:.55}
+.sess.fail .dur{font:600 13px "Segoe UI",sans-serif;color:var(--text-3)}
+.empty{padding:40px 10px;text-align:center;color:var(--text-3);line-height:1.6}
+.empty b{display:block;color:var(--text);font:700 26px var(--display);margin-bottom:6px}
+.static .rise,.static .bar,.static .sess{animation:none}
+.goals{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.goal{padding:18px 20px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line)}
+.goal-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.goal label{font:600 12.5px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.goal b{font:700 30px/1 var(--display);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.goal b small{font-size:18px;color:var(--text-3)}
+.goal .bar{height:10px;margin:14px 0 10px;border-radius:4px;background:rgba(var(--fg-rgb),.07);overflow:hidden}
+.goal .bar i{display:block;height:100%;border-radius:4px;background:var(--accent);transform-origin:left;animation:barIn 1.1s var(--ease) both;animation-delay:.3s}
+.goal.done .bar i{background:var(--good)}
+@keyframes barIn{from{transform:scaleX(0)}}
+.goal .set{display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:12.5px;font-weight:700}
+.goal input{width:110px;padding:6px 9px;border-radius:6px;background:var(--card);border:1px solid var(--line);color:var(--text);font:700 13px "Segoe UI",sans-serif;outline:0}
+.goal input:focus{border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
+.static .goal .bar i{animation:none}
+.note{color:var(--text-3);font-size:12.5px;margin-top:14px;max-width:80ch}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+.nick{margin-top:8px;color:var(--text-3)}.nick b{color:var(--text)}
+.live{display:grid;grid-template-columns:1fr 1.3fr;gap:14px;margin-bottom:14px}
+.live .panel{margin:0}
+.srv-now{display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:8px;background:rgba(61,220,151,.08);border:1px solid rgba(61,220,151,.3);margin-bottom:12px}
+.srv-now.bad{background:rgba(255,90,106,.08);border-color:rgba(255,90,106,.35)}
+.srv-now>b{font:700 40px/1 var(--display);color:var(--good,#3ddc97);font-variant-numeric:tabular-nums}
+.srv-now.bad>b{color:#ff8a96}
+.srv-now strong{display:block;font-size:16px}.srv-now small{color:var(--text-3)}
+.srv-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.srv-list li{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:8px 12px;border-radius:6px}
+.srv-list li.me{background:rgba(var(--fg-rgb),.06)}
+.srv-list small{color:var(--text-3)}.srv-list b{font:700 17px var(--display);font-variant-numeric:tabular-nums}
+.peak{margin:0 0 12px}
+.peak-head{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-3);margin-bottom:6px}
+.peak-head b{color:var(--text-2);font-weight:600}
+.peak-bars{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:64px}
+.peak-bars i{display:block;border-radius:2px 2px 0 0;background:rgba(var(--fg-rgb),.16)}
+.peak-bars i.pk{background:var(--accent)}
+.peak-bars i.now{outline:1px solid var(--text-2);outline-offset:1px}
+.peak-axis{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-3);margin-top:4px;font-variant-numeric:tabular-nums}
+.peak-note{margin:0 0 12px;color:var(--text-3);font-size:12.5px}
+.news{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.news li{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center}
+.news img{width:96px;height:54px;object-fit:cover;border-radius:4px;background:rgba(var(--fg-rgb),.06)}
+.news b{display:block;line-height:1.35}.news small{color:var(--text-3)}
+@media (max-width:1000px){.live{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="../bridge.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const DAY = 86400000;
+let data = null, game = { running: false, session: null };
+const dur = (sec) => { const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m} min`; };
+const hours = (sec) => (sec / 3600).toFixed(1).replace(".", ",") + " h";
+const dayKey = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function sumSince(t0) { return data.sessions.filter((s) => s.joined >= t0).reduce((a, s) => a + s.played, 0); }
+
+function render(first) {
+  const app = $("#app");
+  app.classList.toggle("static", !first);
+  if (!Host.available) {
+    app.innerHTML = `<div class="empty"><b>Statystyki gry</b>Ten moduł działa w aplikacji Majestic Companion.</div>`;
+    return;
+  }
+  if (!data) return;
+  const S = data.sessions.filter((s) => s.connected);
+  const now = Date.now(), today = dayKey(now);
+  const weekStart = (() => { const d = new Date(today); const wd = (d.getDay() + 6) % 7; return today - wd * DAY; })();
+  const total = S.reduce((a, s) => a + s.played, 0);
+  const longest = S.reduce((a, s) => Math.max(a, s.played), 0);
+  const avg = S.length ? total / S.length : 0;
+  const servers = [...new Set(S.map((s) => s.server))];
+  const last = S[0];
+  const days = Array.from({ length: 14 }, (_, i) => today - (13 - i) * DAY);
+  const perDay = days.map((d) => S.filter((s) => dayKey(s.joined) === d).reduce((a, s) => a + s.played, 0));
+  const maxDay = Math.max(...perDay, 1);
+  const st = game.running
+    ? `<div class="status on"><i></i>Teraz grasz${game.session ? " na serwerze " + esc(game.session.server) + " · " + dur((now - (game.session.connected ? game.session.joined : game.session.start)) / 1000) : ""}</div>`
+    : `<div class="status"><i></i>Offline${last ? " · ostatnio " + new Date(last.end).toLocaleString("pl-PL", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : ""}</div>`;
+
+  app.innerHTML = `
+    <div class="hero rise" style="--d:0"><div><h1>Statystyki gry</h1>${st}${live && live.nick ? `<div class="nick">Postać: <b>${esc(live.nick)}</b></div>` : ""}</div>
+      <button class="btn" id="open-logs"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></svg>Folder logów</button></div>
+    ${!data.found ? `<div class="panel empty rise"><b>Nie znaleziono logów Majestic</b>Szukałem w ${esc(data.logsDir)}. Uruchom grę przez launcher Majestic, a sesje pojawią się tutaj.</div>` : !S.length ? `<div class="panel empty rise"><b>Brak sesji</b>Wejdź na serwer, a czas gry zacznie się liczyć.</div>` : `
+    <div class="stats">
+      <div class="stat lead rise" style="--d:1"><label>Dzisiaj</label><b data-count="${sumSince(today)}">0</b><small>${S.filter((s) => s.joined >= today).length} sesji</small></div>
+      <div class="stat rise" style="--d:2"><label>Ten tydzień</label><b data-count="${sumSince(weekStart)}">0</b><small>od poniedziałku</small></div>
+      <div class="stat rise" style="--d:3"><label>Razem w logach</label><b data-count="${total}">0</b><small>${S.length} sesji · ${servers.map(esc).join(", ")}</small></div>
+      <div class="stat rise" style="--d:4"><label>Średnia sesja</label><b>${dur(avg)}</b><small>najdłuższa: ${dur(longest)}</small></div>
+    </div>
+    ${liveHtml()}
+    ${goalsHtml(sumSince(weekStart), weekStart)}
+    <div class="panel rise" style="--d:5"><h2>Ostatnie 14 dni <span>${hours(perDay.reduce((a, b) => a + b, 0))}</span></h2>
+      <div class="chart">${days.map((d, i) => { const h = (perDay[i] / maxDay) * 100; return `<div class="col ${d === today ? "today" : ""}" title="${new Date(d).toLocaleDateString("pl-PL")}: ${dur(perDay[i])}">
+        <div class="bar-wrap" style="--h:${h}%"><em>${perDay[i] ? dur(perDay[i]) : ""}</em><div class="bar ${perDay[i] ? "" : "zero"} ${d === today ? "today" : ""}" style="height:${Math.max(h, 1.5)}%;--i:${i}"></div></div>
+        <span>${new Date(d).toLocaleDateString("pl-PL", { weekday: "short" }).replace(".", "")} ${new Date(d).getDate()}</span></div>`; }).join("")}</div></div>
+    <div class="panel rise" style="--d:6"><h2>Sesje <span>${data.sessions.length}</span></h2>
+      <ul class="list">${data.sessions.slice(0, 60).map((s, i) => `<li class="sess ${s.connected ? "" : "fail"}" style="--i:${Math.min(i, 20)}">
+        <time>${new Date(s.start).toLocaleDateString("pl-PL", { day: "2-digit", month: "short" })}</time>
+        <span class="hrs">${new Date(s.joined).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} – ${new Date(s.end).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span class="srv">${esc(s.server)}</span>
+        <span class="dur">${s.connected ? dur(s.played) : "bez wejścia na serwer"}</span></li>`).join("")}</ul>
+      <p class="note">Dane pochodzą z logów, które klient Majestic sam zapisuje na Twoim dysku. Launcher z czasem usuwa stare logi, więc starsze sesje mogą znikać. Aplikacja nie ingeruje w grę.</p></div>`}`;
+  $("#open-logs").onclick = () => Host.call("open_folder", "logs");
+  app.querySelectorAll("[data-goal]").forEach((inp) => inp.onchange = () => {
+    const g = loadGoals(); g[inp.dataset.goal] = Math.max(0, +inp.value || 0);
+    try { localStorage.setItem("majestic-cele-v1", JSON.stringify(g)); } catch {}
+    render(false);
+  });
+  if (first) app.querySelectorAll("[data-count]").forEach(countUp);
+  else app.querySelectorAll("[data-count]").forEach((el) => (el.textContent = hours(+el.dataset.count)));
+}
+/* na żywo: publiczne API Majestic (gracze, kolejka, przerwy, newsy) */
+let live = null, myServer = "pl1";
+function liveHtml() {
+  if (!live || !live.servers.length) return "";
+  const mine = live.servers.find((s) => s.id === myServer) || live.servers.find((s) => s.id === "pl1");
+  const eu = live.servers.filter((s) => s.region === "eu").sort((a, b) => b.players - a.players);
+  const state = (s) => !s.status ? "offline" : s.techWorks ? "przerwa techniczna" : s.queuedPlayers ? `kolejka: ${s.queuedPlayers}` : "bez kolejki";
+  return `<div class="live rise" style="--d:5">
+    <div class="panel"><h2>Serwer na żywo <span>${new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</span></h2>
+      ${mine ? `<div class="srv-now ${mine.status && !mine.techWorks ? "ok" : "bad"}"><b>${mine.players}</b><div><strong>${esc(mine.name)}</strong><small>graczy online · ${state(mine)}</small></div></div>` : ""}
+      ${peakHtml()}
+      <ul class="srv-list">${eu.map((s) => `<li class="${s.id === (mine && mine.id) ? "me" : ""}"><span>${esc(s.name)}</span><small>${state(s)}</small><b>${s.players}</b></li>`).join("")}</ul></div>
+    ${live.news.length ? `<div class="panel"><h2>Newsy Majestic</h2><ul class="news">${live.news.map((n) => `<li>${n.previewUrl ? `<img src="${esc(n.previewUrl)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<div><b>${esc(n.title)}</b><small>${new Date(n.publishedAt).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}</small></div></li>`).join("")}</ul></div>` : ""}
+  </div>`;
+}
+/* godziny szczytu: średnia liczba graczy w każdej godzinie z zapisów co 10 min (ostatnie 14 dni) */
+function peakHtml() {
+  let hist = [];
+  try { hist = (JSON.parse(localStorage.getItem("majestic-gracze-v1")) || []).filter((h) => h.s === myServer); } catch {}
+  const by = Array.from({ length: 24 }, () => []);
+  hist.forEach((h) => by[new Date(h.t).getHours()].push(h.n));
+  const avg = by.map((a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0));
+  const known = avg.filter(Boolean).length;
+  if (known < 3) return `<p class="peak-note">Godziny szczytu pojawią się, gdy aplikacja zbierze dane z kilku godzin (zapis co 10 min, gdy jest włączona).</p>`;
+  const max = Math.max(...avg), peak = avg.indexOf(max), now = new Date().getHours();
+  return `<div class="peak" role="img" aria-label="Średnia liczba graczy w ciągu doby, najwięcej o ${peak}:00">
+    <div class="peak-head"><span>Gracze w ciągu doby</span><b>szczyt ok. ${peak}:00 · ${Math.round(max)}</b></div>
+    <div class="peak-bars">${avg.map((v, h) => `<i class="${h === peak ? "pk" : ""} ${h === now ? "now" : ""}" style="height:${v ? Math.max(6, (v / max) * 100) : 3}%" title="${h}:00 · ${v ? Math.round(v) + " graczy" : "brak danych"}"></i>`).join("")}</div>
+    <div class="peak-axis"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div></div>`;
+}
+async function loadLive() {
+  try { const st = await Host.call("get_settings"); if (st && st.server) myServer = String(st.server).toLowerCase(); } catch {}
+  try { live = await Host.call("live"); } catch {}
+  if (data) render(false);
+}
+/* cele tygodniowe: czas z logów, pieniądze z zakładki Kasa */
+function loadGoals() { try { return { hours: 10, money: 500000, ...JSON.parse(localStorage.getItem("majestic-cele-v1")) }; } catch { return { hours: 10, money: 500000 }; } }
+function goalsHtml(weekSec, weekStart) {
+  const g = loadGoals();
+  let earned = 0;
+  try { earned = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= weekStart).reduce((a, l) => a + l.amt, 0); } catch {}
+  const h = weekSec / 3600;
+  const card = (key, label, val, goal, fmtV, unit) => {
+    const pct = goal ? Math.min(100, (val / goal) * 100) : 0;
+    return `<div class="goal ${pct >= 100 ? "done" : ""}"><div class="goal-top"><label>${label}</label><b>${fmtV(val)} <small>/ ${fmtV(goal)}</small></b></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="set">Cel na tydzień <input type="number" min="0" data-goal="${key}" value="${goal}"> ${unit}${pct >= 100 ? " · zrobione!" : ""}</div></div>`;
+  };
+  const money = (n) => "$" + Math.round(n).toLocaleString("pl-PL");
+  return `<div class="goals rise" style="--d:5;margin-bottom:14px">${card("hours", "Czas gry w tym tygodniu", h, g.hours, (v) => v.toFixed(1).replace(".", ",") + " h", "godz.")}${card("money", "Zarobek w tym tygodniu", earned, g.money, money, "$")}</div>`;
+}
+function countUp(el) {
+  const v = +el.dataset.count, t0 = performance.now();
+  const step = (t) => { const p = Math.min(1, (t - t0) / 1100), e = 1 - Math.pow(1 - p, 4); el.textContent = hours(v * e); if (p < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+async function load(first) {
+  try { data = await Host.call("sessions"); } catch { data = data || { found: false, sessions: [], logsDir: "" }; }
+  render(first);
+}
+let wasRunning = null;
+Host.onGame((g) => {
+  game = g;
+  if (wasRunning !== null && wasRunning !== g.running) load(false); else if (data) render(false);
+  wasRunning = g.running;
+});
+load(true);
+loadLive();
+setInterval(loadLive, 60000);
+setInterval(() => load(false), 120000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Majestic Mapa</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="intro" aria-hidden="true">
+  <div class="intro-mark">
+    <svg viewBox="0 0 48 48"><path class="intro-path" d="M24 4c-8 0-14 6-14 14 0 10 14 26 14 26s14-16 14-26c0-8-6-14-14-14z"/><circle class="intro-dot" cx="24" cy="18" r="5"/></svg>
+  </div>
+  <div class="intro-word">MAJESTIC<span>MAPA</span></div>
+  <div class="intro-bar"><i></i></div>
+</div>
+
+<div id="map"></div>
+<div id="favbar" hidden aria-label="Ulubione miejsca"></div>
+
+<aside id="side">
+  <header class="brand">
+    <svg class="brand-pin" viewBox="0 0 48 48"><path d="M24 4c-8 0-14 6-14 14 0 10 14 26 14 26s14-16 14-26c0-8-6-14-14-14z"/><circle cx="24" cy="18" r="5"/></svg>
+    <div>
+      <h1>Majestic <b>Mapa</b></h1>
+      <p id="stat">0 znaczników</p>
+    </div>
+    <button class="icon-btn" id="collapse" title="Zwiń panel (Tab)"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+  </header>
+
+  <label class="search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Szukaj miejsca…" autocomplete="off" spellcheck="false">
+    <kbd>Ctrl K</kbd>
+  </label>
+
+  <div class="side-scroll">
+    <section id="results" hidden>
+      <h2>Wyniki</h2>
+      <ul id="result-list" class="place-list"></ul>
+    </section>
+    <section id="favs-wrap" hidden>
+      <div class="sec-head"><h2>Ulubione</h2></div>
+      <ul id="favs" class="place-list"></ul>
+    </section>
+    <section id="draw-wrap">
+      <div class="sec-head"><h2>Trasy i strefy</h2>
+        <span class="draw-btns"><button class="link" id="draw-route" title="Rysuj trasę (R)">+ Trasa</button><button class="link" id="draw-zone" title="Rysuj strefę (Z)">+ Strefa</button></span></div>
+      <ul id="draw-list" class="place-list"></ul>
+    </section>
+    <section id="wiki-wrap">
+      <div class="sec-head"><h2>Warstwy z wiki</h2><button class="link" id="wiki-sync" title="Pobiera aktualne dane z Majestic Wiki">Aktualizuj</button></div>
+      <ul id="wiki-layers"></ul>
+      <p class="wiki-meta" id="wiki-meta"></p>
+    </section>
+    <section id="cats-wrap">
+      <div class="sec-head">
+        <h2>Kategorie</h2>
+        <button class="link" id="toggle-all">Ukryj wszystkie</button>
+      </div>
+      <ul id="cats"></ul>
+    </section>
+  </div>
+
+  <footer class="side-foot">
+    <button class="btn primary" id="add-btn">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Dodaj znacznik
+    </button>
+    <div class="foot-row">
+      <button class="btn ghost" id="me-btn" title="Zaznacz, gdzie jesteś w grze (H)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>Tu jestem</button>
+      <button class="btn ghost" id="shots-btn" title="Zrzuty ekranu z gry (G)"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Zrzuty</button>
+    </div>
+    <div class="foot-row">
+      <button class="btn ghost" id="export-btn" title="Zapisz znaczniki do pliku"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Eksport</button>
+      <button class="btn ghost" id="import-btn" title="Wczytaj znaczniki z pliku"><svg viewBox="0 0 24 24"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>Import</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+  </footer>
+</aside>
+<button id="expand" class="icon-btn float" title="Pokaż panel (Tab)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+
+<div id="styles" role="radiogroup" aria-label="Styl mapy">
+  <button data-style="satellite" class="on">Satelita</button>
+  <button data-style="atlas">Atlas</button>
+  <button data-style="road">Drogi</button>
+  <i class="seg-glider"></i>
+</div>
+
+<div id="hud">
+  <span>X <b id="cx">0</b></span><span>Y <b id="cy">0</b></span>
+</div>
+
+<div id="placing-hint" hidden>
+  <svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3"/></svg>
+  <span class="ph-text">Kliknij na mapie, gdzie postawić znacznik</span> <kbd>Esc</kbd> anuluje
+</div>
+
+<aside id="card" hidden>
+  <button class="icon-btn close" data-close title="Zamknij (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div id="card-body"></div>
+</aside>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script src="../bridge.js"></script>
+<script src="vendor/leaflet.js"></script>
+<script src="markers.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dziś</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.kpi{padding:16px 18px;border-radius:6px;background:var(--bg-2);border:1px solid var(--line-2);cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
+.kpi:hover{border-color:color-mix(in srgb,var(--accent) 55%,transparent);background:var(--card)}
+.kpi label{display:block;font:600 12px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);cursor:inherit}
+.kpi b{display:block;margin:8px 0 4px;font:700 30px/1 var(--display);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.kpi small{color:var(--text-2)}
+.kpi.good b{color:var(--good)}.kpi.bad b{color:var(--bad)}
+.cols{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;align-items:start}
+.rows{list-style:none;margin:0;padding:0}
+.rows li{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.rows li:last-child{border-bottom:0}
+.rows time,.rows .v{font:600 15px var(--display);font-variant-numeric:tabular-nums}
+.rows .v{color:var(--accent)}
+.rows small{display:block;color:var(--text-3)}
+.notes li{grid-template-columns:1fr auto}
+.notes p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.x{width:30px;height:30px;border-radius:4px;display:grid;place-items:center;color:var(--text-3)}
+.x:hover{background:rgba(239,68,68,.14);color:#fca5a5}
+.muted{color:var(--text-3);padding:6px 0}
+.goal{margin-bottom:14px}.goal:last-child{margin-bottom:0}
+.goal-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.goal-top b{font:600 15px var(--display);font-variant-numeric:tabular-nums}
+.goal-top small{color:var(--text-3)}
+.gbar{height:8px;border-radius:4px;background:rgba(var(--fg-rgb),.08);overflow:hidden}
+.gbar i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .6s var(--ease)}
+.goal.done .gbar i{background:var(--good)}
+.goal.done .goal-top b{color:var(--good)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c,var(--accent))}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Dziś</h1><p class="sub" id="date"></p></div>
+    <button class="btn" id="note-btn"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Szybka notatka <kbd>Ctrl+Shift+N</kbd></button></div>
+  <div class="kpis rise" style="--d:1">
+    <button class="kpi" data-go="sesje"><label>Czas gry dziś</label><b id="k-time">—</b><small id="k-time-s">z logów Majestic</small></button>
+    <button class="kpi" data-go="zarobki" id="k-money-box"><label>Na czysto dziś</label><b id="k-money">—</b><small id="k-money-s">zarobki minus wydatki</small></button>
+    <button class="kpi" data-go="minutniki"><label>Minutniki</label><b id="k-timers">0</b><small id="k-timers-s">aktywne</small></button>
+    <button class="kpi" data-go="sesje"><label>Gracze na serwerze</label><b id="k-players">—</b><small id="k-players-s">ładowanie…</small></button>
+  </div>
+  <div class="cols">
+    <div class="grid">
+      <section class="panel rise" style="--d:2"><h2>Najbliższe minutniki</h2><ul class="rows" id="timers"></ul></section>
+      <section class="panel rise" style="--d:3"><h2>Grafik ekipy</h2><ul class="rows" id="events"></ul></section>
+      <section class="panel rise" style="--d:3"><h2>Cele tygodnia</h2><div id="goals"></div></section>
+    </div>
+    <section class="panel rise" style="--d:4"><h2>Notatki <span id="n-count"></span></h2><ul class="rows notes" id="notes"></ul></section>
+  </div>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc, money } = U;
+const DAY = 86400000;
+const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const dur = (sec) => { const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m} min`; };
+const left = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}:${String(s % 60).padStart(2, "0")}`; };
+const xIcon = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+let sessions = null, live = null, myServer = "pl1";
+
+function renderFast() {
+  const now = Date.now(), today = dayStart(now);
+  $("#date").textContent = new Date().toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" });
+  const timers = U.load("majestic-minutniki-v1", []).filter((t) => t.end > now).sort((a, b) => a.end - b.end);
+  $("#k-timers").textContent = timers.length;
+  $("#k-timers-s").textContent = timers[0] ? `najbliższy: ${timers[0].name} za ${left(timers[0].end - now)}` : "brak aktywnych";
+  $("#timers").innerHTML = timers.slice(0, 5).map((t) => `<li><i class="dot" style="--c:${t.c || "var(--accent)"}"></i><span>${esc(t.name)}</span><span class="v">${left(t.end - now)}</span></li>`).join("") || `<li class="muted">Brak aktywnych minutników.</li>`;
+  const earn = U.load("majestic-zarobki-v1", []).filter((l) => l.at >= today);
+  const net = earn.reduce((a, l) => a + l.amt, 0), spent = earn.filter((l) => l.amt < 0).reduce((a, l) => a - l.amt, 0);
+  $("#k-money").textContent = earn.length ? money(net) : "—";
+  $("#k-money-box").className = "kpi " + (earn.length ? (net >= 0 ? "good" : "bad") : "");
+  $("#k-money-s").textContent = earn.length ? `wydatki: ${money(spent)}` : "brak wpisów dzisiaj";
+  const ev = (U.load("majestic-ekipa-v1", { events: [] }).events || []).filter((e) => e.at > now).sort((a, b) => a.at - b.at).slice(0, 4);
+  $("#events").innerHTML = ev.map((e) => `<li><time>${new Date(e.at).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</time><span>${esc(e.title)}<small>${dayStart(e.at) === today ? "dzisiaj" : new Date(e.at).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "short" })}</small></span><span></span></li>`).join("") || `<li class="muted">Nic zaplanowanego. Dodaj akcję w zakładce Ekipa.</li>`;
+}
+// notatki osobno: odświeżanie co sekundę zabierałoby fokus i hover z przycisków
+function renderNotes() {
+  const notes = U.load("majestic-notatki-v1", []).slice().reverse();
+  $("#n-count").textContent = notes.length || "";
+  $("#notes").innerHTML = notes.slice(0, 30).map((n) => `<li><div><p>${esc(n.t)}</p><small>${new Date(n.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></div><button class="x" data-del="${n.id}" title="Usuń notatkę" aria-label="Usuń notatkę">${xIcon}</button></li>`).join("") || `<li class="muted">Brak notatek. W grze naciśnij Ctrl+Shift+N, żeby szybko coś zapisać.</li>`;
+}
+function renderGoals() {
+  const ws = dayStart(Date.now()) - ((new Date().getDay() + 6) % 7) * DAY;
+  const g = { hours: 10, money: 500000, ...U.load("majestic-cele-v1", {}) };
+  const h = sessions ? sessions.filter((s) => s.connected && s.joined >= ws).reduce((a, s) => a + s.played, 0) / 3600 : null;
+  const m = U.load("majestic-zarobki-v1", []).filter((l) => l.at >= ws).reduce((a, l) => a + l.amt, 0);
+  const row = (label, val, goal, fmt) => { const pct = goal ? Math.min(100, Math.max(0, (val / goal) * 100)) : 0;
+    return `<div class="goal ${pct >= 100 ? "done" : ""}"><div class="goal-top"><span>${label}</span><b>${fmt(val)} <small>/ ${fmt(goal)}${pct >= 100 ? " · zrobione!" : ""}</small></b></div><div class="gbar"><i style="width:${pct}%"></i></div></div>`; };
+  $("#goals").innerHTML = row("Czas gry", h ?? 0, g.hours, (v) => v.toFixed(1).replace(".", ",") + " h") + row("Zarobek na czysto", m, g.money, money)
+    + `<small class="muted">Cele zmienisz w zakładce Statystyki. Po osiągnięciu dostaniesz powiadomienie.</small>`;
+}
+function renderSlow() {
+  renderGoals();
+  if (sessions) {
+    const today = dayStart(Date.now()), S = sessions.filter((s) => s.connected && s.joined >= today);
+    $("#k-time").textContent = dur(S.reduce((a, s) => a + s.played, 0));
+    $("#k-time-s").textContent = `${S.length} sesji dzisiaj`;
+  }
+  if (live && live.servers.length) {
+    const s = live.servers.find((x) => x.id === myServer) || live.servers[0];
+    $("#k-players").textContent = s.players;
+    $("#k-players-s").textContent = `${s.name} · ${!s.status ? "offline" : s.techWorks ? "przerwa techniczna" : s.queuedPlayers ? "kolejka: " + s.queuedPlayers : "bez kolejki"}`;
+  } else if (live) $("#k-players-s").textContent = "brak połączenia z serwerem Majestic";
+}
+async function loadSlow() {
+  if (!Host.available) return;
+  try { sessions = (await Host.call("sessions")).sessions; } catch {}
+  try { const st = await Host.call("get_settings"); if (st && st.server) myServer = String(st.server).toLowerCase(); } catch {}
+  try { live = await Host.call("live"); } catch { live = { servers: [] }; }
+  renderSlow();
+}
+document.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => Host.nav(b.dataset.go));
+$("#note-btn").onclick = () => Host.call("toggle_note");
+$("#notes").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-del]"); if (!b) return;
+  U.save("majestic-notatki-v1", U.load("majestic-notatki-v1", []).filter((n) => n.id !== b.dataset.del));
+  renderNotes();
+});
+window.addEventListener("storage", () => { renderFast(); renderNotes(); });
+renderFast(); renderNotes(); renderGoals(); loadSlow();
+setInterval(renderNotes, 5000);
+setInterval(renderFast, 1000); setInterval(loadSlow, 120000);
+})();
+</script>
+</body>
+</html>

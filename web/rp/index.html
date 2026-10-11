@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teksty RP</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.lines{display:grid;gap:8px}
+.jr-form{display:grid;grid-template-columns:170px 1fr auto;gap:8px;margin-bottom:14px}
+.jr-form input[type=date]{width:100%;padding:9px 11px;border-radius:4px;background:var(--input,#0b1729);border:1px solid var(--line-2);color:inherit;font:inherit;color-scheme:dark}
+.journal{list-style:none;margin:0;padding:0 0 0 18px;border-left:2px solid var(--line-2);display:grid;gap:14px}
+.journal li{position:relative;display:grid;grid-template-columns:1fr auto;gap:8px}
+.journal li::before{content:"";position:absolute;left:-25px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--bg-2)}
+.journal time{display:block;font:600 13px var(--display);letter-spacing:.04em;color:var(--text-3)}
+.journal p{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.journal button{width:30px;height:30px;border-radius:4px;display:grid;place-items:center;color:var(--text-3)}
+.journal button:hover{background:rgba(239,68,68,.14);color:#fca5a5}
+.journal .muted{color:var(--text-3)}
+.journal .muted::before{display:none}
+.line{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;width:100%;padding:13px 14px;border-radius:8px;background:var(--card);border:1px solid var(--line);text-align:left;transition:transform .3s var(--ease),border-color .25s,background .25s;animation:rise .45s var(--ease) both;animation-delay:calc(var(--i) * 30ms)}
+.line:hover{transform:translateX(4px);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--card-2)}
+.line.copied{border-color:var(--good)}
+.cmd{display:grid;place-items:center;height:28px;border-radius:4px;font:700 14px var(--display);letter-spacing:.06em}
+.cmd.me{background:rgba(77,141,255,.16);color:#9cc0ff}
+.cmd.do{background:rgba(176,124,255,.16);color:#cfb2ff}
+.cmd.say{background:rgba(61,220,151,.14);color:#86ecbf}
+.line span{font-weight:600;overflow-wrap:anywhere}
+.line small{color:var(--text-3);font-weight:700;opacity:0;transition:opacity .2s}
+.line:hover small{opacity:1}
+.line .del{width:28px;height:28px;border-radius:4px;display:grid;place-items:center;color:var(--text-3)}
+.line .del:hover{color:#ff8a96;background:rgba(255,90,106,.12)}
+.add{display:grid;grid-template-columns:120px 1fr auto;gap:10px;margin-top:14px}
+.name{display:flex;gap:10px;align-items:end;margin-bottom:18px}
+.name .field{flex:1;max-width:340px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Teksty RP</h1><p class="sub">Kliknij tekst, a trafi do schowka. W grze wklejasz go w czat (Ctrl+V). <b>{imię}</b> zamienia się na imię postaci, którą wpiszesz niżej.</p></div></div>
+  <div class="name rise" style="--d:1"><label class="field"><span>Imię postaci, do której mówisz</span><input type="text" id="target" maxlength="40" placeholder="np. John Doe"></label></div>
+  <div class="chips rise" style="--d:2;margin-bottom:16px" id="tabs"></div>
+  <section class="panel rise" style="--d:3"><div class="lines" id="lines"></div>
+    <form class="add" id="add" autocomplete="off"><select name="cmd"><option value="me">/me</option><option value="do">/do</option><option value="say">tekst</option></select>
+      <input type="text" name="text" maxlength="200" placeholder="Dodaj własny tekst do tej kategorii…"><button class="btn primary">Dodaj</button></form></section>
+  <section class="panel rise" style="--d:4"><h2>Dziennik postaci <span id="j-count"></span></h2>
+    <form class="jr-form" id="jr" autocomplete="off">
+      <input type="date" name="day" aria-label="Data wydarzenia">
+      <input type="text" name="t" maxlength="300" placeholder="np. Dostałem pracę w LSPD, poznałem Marka z Vagos…" aria-label="Co się wydarzyło">
+      <button class="btn primary">Zapisz</button>
+    </form>
+    <ol class="journal" id="journal"></ol>
+  </section>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc, uid } = U;
+const KEY = "majestic-rp-v1";
+const BASE = {
+  "Policja": [["me","pokazuje odznakę i przedstawia się"],["say","Dzień dobry, kontrola drogowa. Proszę o dokumenty pojazdu i prawo jazdy."],["me","zakłada kajdanki na ręce {imię}"],["do","Kajdanki są zapięte prawidłowo, nie uciskają nadgarstków."],["me","przeszukuje kieszenie {imię}"],["do","Czy przy przeszukaniu coś znaleziono?"],["me","wypisuje mandat i podaje go {imię}"],["me","odczytuje {imię} jego prawa"],["say","Ma pan prawo zachować milczenie. Wszystko, co pan powie, może zostać użyte przeciwko panu."]],
+  "EMS": [["me","sprawdza puls na tętnicy szyjnej {imię}"],["do","Puls jest wyczuwalny?"],["me","zakłada opatrunek uciskowy na ranę"],["me","podaje leki przeciwbólowe {imię}"],["me","układa poszkodowanego na noszach i zabezpiecza pasami"],["do","Poszkodowany jest przytomny i reaguje na głos?"],["say","Spokojnie, jestem ratownikiem. Zaraz panu pomożemy."]],
+  "Mechanik": [["me","otwiera maskę i ogląda silnik"],["do","Pod maską widać uszkodzony przewód."],["me","podłącza komputer diagnostyczny"],["me","wymienia uszkodzone części i dokręca śruby"],["say","Naprawa będzie kosztować tyle, ile w cenniku. Pasuje?"],["me","sprawdza ciśnienie w oponach"]],
+  "Gang": [["me","rozgląda się, czy nikt nie obserwuje"],["me","przekazuje paczkę {imię}"],["do","Paczka jest owinięta czarną taśmą."],["me","zasłania twarz chustą"],["say","Nie widziałeś mnie tutaj, jasne?"],["me","przeładowuje broń"]],
+  "Cywil": [["me","podaje rękę {imię} na przywitanie"],["me","wyciąga telefon i zapisuje numer"],["me","płaci gotówką i odbiera resztę"],["do","Na twarzy widać zmęczenie."],["me","zapala papierosa"],["say","Hej, masz chwilę? Szukam pracy."]],
+};
+let custom = U.load(KEY, {});
+let tab = "Policja";
+const all = () => [...BASE[tab].map(([c, t]) => ({ c, t })), ...(custom[tab] || [])];
+const fill = (t) => t.replaceAll("{imię}", $("#target").value.trim() || "osobie");
+const out = (l) => (l.c === "say" ? "" : "/" + l.c + " ") + fill(l.t);
+
+function render() {
+  $("#tabs").innerHTML = Object.keys(BASE).map((k) => `<button class="chip ${k === tab ? "on" : ""}" data-tab="${k}">${k}</button>`).join("");
+  $("#lines").innerHTML = all().map((l, i) => `<button class="line" data-i="${i}" style="--i:${i}"><span class="cmd ${l.c}">${l.c === "say" ? "TXT" : "/" + l.c}</span><span>${esc(fill(l.t))}</span>
+    ${l.id ? `<span class="del" data-del="${l.id}" title="Usuń"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span>` : `<small>Kopiuj</small>`}</button>`).join("");
+}
+$("#tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) { tab = b.dataset.tab; render(); } });
+$("#lines").addEventListener("click", (e) => {
+  const d = e.target.closest("[data-del]");
+  if (d) { custom[tab] = (custom[tab] || []).filter((l) => l.id !== d.dataset.del); U.save(KEY, custom); return render(); }
+  const b = e.target.closest(".line"); if (!b) return;
+  U.copy(out(all()[b.dataset.i]), "Skopiowano. Wklej w czacie gry (Ctrl+V)");
+  b.classList.add("copied"); setTimeout(() => b.classList.remove("copied"), 900);
+});
+$("#target").addEventListener("input", render);
+/* dziennik postaci: historia RP z datami, od najnowszych */
+const JKEY = "majestic-dziennik-v1";
+function renderJournal() {
+  const list = U.load(JKEY, []).slice().sort((a, b) => b.day.localeCompare(a.day) || b.at - a.at);
+  $("#j-count").textContent = list.length || "";
+  $("#journal").innerHTML = list.map((e) => `<li><div><time>${new Date(e.day + "T12:00").toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" })}</time><p>${esc(e.t)}</p></div><button data-jdel="${e.id}" title="Usuń wpis" aria-label="Usuń wpis"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join("")
+    || `<li class="muted">Zapisuj ważne chwile swojej postaci: pracę, znajomości, akcje. Za miesiąc łatwo przypomnisz sobie jej historię.</li>`;
+}
+$("#jr").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target, t = f.t.value.trim(); if (!t) return;
+  const list = U.load(JKEY, []);
+  list.push({ id: uid(), day: f.day.value || new Date().toISOString().slice(0, 10), t, at: Date.now() });
+  U.save(JKEY, list); f.t.value = ""; renderJournal(); U.toast("Zapisano w dzienniku");
+});
+$("#journal").addEventListener("click", (e) => { const b = e.target.closest("[data-jdel]"); if (b) { U.save(JKEY, U.load(JKEY, []).filter((x) => x.id !== b.dataset.jdel)); renderJournal(); } });
+$("#jr").day.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+renderJournal();
+$("#add").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const t = e.target.text.value.trim(); if (!t) return;
+  (custom[tab] ||= []).push({ id: uid(), c: e.target.cmd.value, t: t.replace(/^\/(me|do)\s+/i, "") });
+  U.save(KEY, custom); e.target.text.value = ""; render(); U.toast("Dodano tekst");
+});
+render();
+})();
+</script>
+</body>
+</html>

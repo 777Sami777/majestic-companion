@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ekipa</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.two{display:grid;grid-template-columns:1.25fr 1fr;gap:14px;align-items:start}
+.ev-add{display:grid;grid-template-columns:1.4fr 1fr .9fr auto;gap:8px;margin-bottom:16px}
+.day{margin:16px 0 8px;font:600 13px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.day:first-of-type{margin-top:0}
+.day.today{color:var(--accent)}
+.ev{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:center;padding:12px 14px;margin-bottom:6px;border-radius:8px;background:var(--card);border:1px solid var(--line);animation:rise .45s var(--ease) both;animation-delay:calc(var(--i) * 35ms)}
+.ev time{font:700 20px var(--display);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.ev b{display:block;font-weight:700}
+.ev small{color:var(--text-3)}
+.ev.past{opacity:.5}
+.ev.soon{border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
+.ev.soon time{color:var(--accent)}
+.x{width:30px;height:30px;border-radius:6px;color:var(--text-3);display:grid;place-items:center}
+.x:hover{background:rgba(255,90,106,.12);color:#ff8a96}
+.it-add{display:grid;grid-template-columns:1fr 90px auto;gap:8px;margin-bottom:14px}
+.items{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:9px 10px 9px 14px;border-radius:6px;background:var(--card);border:1px solid var(--line);animation:rise .4s var(--ease) both;animation-delay:calc(var(--i) * 25ms)}
+.item .nm{font-weight:700;overflow-wrap:anywhere}
+.qty{display:flex;align-items:center;gap:4px}
+.qty button{width:30px;height:30px;border-radius:6px;background:rgba(var(--fg-rgb),.06);font-weight:700;transition:background .2s,transform .2s var(--ease)}
+.qty button:hover{background:rgba(var(--fg-rgb),.12)}
+.qty button:active{transform:scale(.9)}
+.qty b{min-width:46px;text-align:center;font:700 19px var(--display);font-variant-numeric:tabular-nums;transition:color .3s}
+.qty b.bump{animation:bump .35s var(--ease)}
+@keyframes bump{50%{transform:scale(1.25);color:var(--accent)}}
+.item.low{border-color:rgba(255,90,106,.4)}
+.item.low .qty b{color:#ff8a96}
+.hint{margin:0 0 12px;color:var(--text-2);font-size:13.5px}
+.share{display:flex;gap:8px;margin-top:8px}
+.share input{flex:1}
+.report{white-space:pre-wrap;font:500 13px/1.6 "Segoe UI",sans-serif;color:var(--text-2);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;max-height:280px;overflow:auto;margin:0 0 12px}
+@media (max-width:1100px){.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Ekipa</h1><p class="sub">Grafik spotkań z przypomnieniem, magazyn ekipy i gotowy raport do wklejenia na Discorda.</p></div></div>
+  <div class="two">
+    <section class="panel rise" style="--d:1"><h2>Grafik</h2>
+      <form class="ev-add" id="ev-add" autocomplete="off">
+        <input type="text" name="title" maxlength="60" placeholder="np. Zbiórka na Grove Street">
+        <input type="datetime-local" name="at" aria-label="Kiedy">
+        <select name="remind" aria-label="Przypomnienie"><option value="0">W chwili startu</option><option value="5">5 min wcześniej</option><option value="15" selected>15 min wcześniej</option><option value="30">30 min wcześniej</option><option value="60">1 h wcześniej</option></select>
+        <button class="btn primary">Dodaj</button>
+      </form>
+      <div id="events"></div>
+    </section>
+    <div class="grid">
+      <section class="panel rise" style="--d:2"><h2>Magazyn</h2>
+        <form class="it-add" id="it-add" autocomplete="off"><input type="text" name="name" maxlength="40" placeholder="np. Materiały do broni"><input type="number" name="qty" value="1" min="0" aria-label="Ilość"><button class="btn primary">Dodaj</button></form>
+        <ul class="items" id="items"></ul>
+      </section>
+      <section class="panel rise" style="--d:3"><h2>Raport na Discorda</h2>
+        <pre class="report" id="report"></pre>
+        <button class="btn primary" id="copy-report">Kopiuj raport</button>
+      </section>
+      <section class="panel rise" style="--d:4"><h2>Kod ekipy</h2>
+        <p class="hint">Grafik i magazyn jako jeden kod. Wyślij go ekipie na Discordzie, a każdy wklei go u siebie. Nic nie trafia do internetu.</p>
+        <div class="share"><button class="btn primary" id="code-copy">Kopiuj kod ekipy</button></div>
+        <form class="share" id="code-in" autocomplete="off"><input type="text" name="code" placeholder="Wklej kod MJE:…" aria-label="Kod ekipy"><button class="btn">Wczytaj</button></form>
+      </section>
+    </div>
+  </div>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc, uid, money } = U;
+const KEY = "majestic-ekipa-v1";
+let data = U.load(KEY, { events: [], items: [] });
+const save = () => U.save(KEY, data);
+const DAY = 86400000;
+const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const xIcon = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+function renderEvents() {
+  const now = Date.now();
+  // pokazujemy od wczoraj w górę, starsze same znikają z listy
+  const list = data.events.filter((e) => e.at > dayStart(now) - DAY).sort((a, b) => a.at - b.at);
+  if (!list.length) { $("#events").innerHTML = `<div class="empty"><b>Pusty grafik</b>Dodaj zbiórkę, akcję albo dyżur. Przypomnienie przyjdzie jako powiadomienie Windows.</div>`; return; }
+  let last = null, html = "";
+  list.forEach((e, i) => {
+    const d = dayStart(e.at);
+    if (d !== last) {
+      last = d;
+      const label = d === dayStart(now) ? "Dzisiaj" : d === dayStart(now) + DAY ? "Jutro" : new Date(e.at).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" });
+      html += `<div class="day ${d === dayStart(now) ? "today" : ""}">${label}</div>`;
+    }
+    const cls = e.at < now ? "past" : e.at - now < 3600000 ? "soon" : "";
+    html += `<div class="ev ${cls}" style="--i:${i}"><time>${new Date(e.at).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</time>
+      <div><b>${esc(e.title)}</b><small>${e.remind ? "przypomnienie " + e.remind + " min wcześniej" : "przypomnienie w chwili startu"}</small></div>
+      <button class="x" data-del-ev="${e.id}" title="Usuń">${xIcon}</button></div>`;
+  });
+  $("#events").innerHTML = html;
+}
+function renderItems() {
+  $("#items").innerHTML = data.items.length ? data.items.map((it, i) => `<li class="item ${it.qty <= 0 ? "low" : ""}" data-id="${it.id}" style="--i:${i}">
+      <span class="nm">${esc(it.name)}</span>
+      <span class="qty"><button data-q="-1" title="Mniej">−</button><b>${it.qty}</b><button data-q="1" title="Więcej">+</button></span>
+      <button class="x" data-del-it title="Usuń">${xIcon}</button></li>`).join("")
+    : `<li class="empty"><b>Pusty magazyn</b>Dodaj przedmioty i materiały ekipy.</li>`;
+}
+function renderReport() {
+  const now = Date.now(), week = dayStart(now) - ((new Date(now).getDay() + 6) % 7) * DAY;
+  const earn = U.load("majestic-zarobki-v1", []).filter((l) => l.at >= week);
+  const byJob = {}; earn.forEach((l) => (byJob[l.job] = (byJob[l.job] || 0) + l.amt));
+  const top = Object.entries(byJob).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const mapS = U.load("majestic-mapa-v1", {});
+  const own = (mapS.markers || []).filter((m) => !m.builtin).length;
+  const next = data.events.filter((e) => e.at > now).sort((a, b) => a.at - b.at).slice(0, 5);
+  const lines = [
+    `**📋 Raport tygodnia · ${new Date().toLocaleDateString("pl-PL")}**`,
+    `💰 Zarobek: **${money(earn.reduce((a, l) => a + l.amt, 0))}**${top.length ? " (" + top.map(([j, v]) => `${j} ${money(v)}`).join(", ") + ")" : ""}`,
+    `📍 Własne znaczniki na mapie: ${own}`,
+    "",
+    "**🗓️ Najbliższe akcje:**",
+    ...(next.length ? next.map((e) => `• ${new Date(e.at).toLocaleString("pl-PL", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })} – ${e.title}`) : ["• brak"]),
+    "",
+    "**📦 Magazyn:**",
+    ...(data.items.length ? data.items.map((it) => `• ${it.name}: ${it.qty}${it.qty <= 0 ? " ⚠️ brak" : ""}`) : ["• pusty"]),
+  ];
+  $("#report").textContent = lines.join("\n");
+}
+const render = () => { renderEvents(); renderItems(); renderReport(); };
+
+$("#ev-add").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target, title = f.title.value.trim(), at = new Date(f.at.value).getTime();
+  if (!title || !at) return U.toast("Podaj nazwę i datę");
+  if (at < Date.now()) return U.toast("Ta data już minęła");
+  data.events.push({ id: uid(), title, at, remind: +f.remind.value });
+  save(); f.title.value = ""; render(); U.toast("Dodano do grafiku");
+});
+$("#events").addEventListener("click", (e) => { const b = e.target.closest("[data-del-ev]"); if (b) { data.events = data.events.filter((x) => x.id !== b.dataset.delEv); save(); render(); } });
+$("#it-add").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target, name = f.name.value.trim(), qty = Math.max(0, Math.round(+f.qty.value || 0));
+  if (!name) return;
+  const ex = data.items.find((it) => it.name.toLowerCase() === name.toLowerCase());
+  ex ? (ex.qty += qty) : data.items.push({ id: uid(), name, qty });
+  save(); f.name.value = ""; f.qty.value = 1; render();
+});
+$("#items").addEventListener("click", (e) => {
+  const li = e.target.closest(".item"); if (!li) return;
+  const it = data.items.find((x) => x.id === li.dataset.id); if (!it) return;
+  if (e.target.closest("[data-del-it]")) { data.items = data.items.filter((x) => x !== it); save(); return render(); }
+  const q = e.target.closest("[data-q]"); if (!q) return;
+  it.qty = Math.max(0, it.qty + +q.dataset.q); save();
+  const b = li.querySelector(".qty b"); b.textContent = it.qty; li.classList.toggle("low", it.qty <= 0);
+  b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump");
+  renderReport();
+});
+$("#copy-report").addEventListener("click", () => U.copy($("#report").textContent, "Skopiowano raport. Wklej go na kanale Discorda"));
+/* kod ekipy: MJE: + base64 z grafiku i magazynu */
+$("#code-copy").addEventListener("click", () => {
+  const json = JSON.stringify({ v: 1, events: data.events.filter((e) => e.at > Date.now()), items: data.items });
+  U.copy("MJE:" + btoa(unescape(encodeURIComponent(json))), "Skopiowano kod ekipy. Wklej go na Discordzie");
+});
+$("#code-in").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const raw = e.target.code.value.trim().replace(/^MJE:/i, "");
+  let inc;
+  try { inc = JSON.parse(decodeURIComponent(escape(atob(raw)))); } catch { return U.toast("To nie jest poprawny kod ekipy"); }
+  if (!inc || !Array.isArray(inc.events) || !Array.isArray(inc.items)) return U.toast("To nie jest poprawny kod ekipy");
+  let ne = 0, ni = 0;
+  inc.events.forEach((ev) => {
+    if (typeof ev.title !== "string" || !(ev.at > 0) || data.events.some((x) => x.id === ev.id)) return;
+    data.events.push({ id: String(ev.id || uid()), title: ev.title.slice(0, 60), at: +ev.at, remind: Math.max(0, +ev.remind || 0) }); ne++;
+  });
+  inc.items.forEach((it) => {
+    if (typeof it.name !== "string") return;
+    const qty = Math.max(0, Math.round(+it.qty || 0)), ex = data.items.find((x) => x.name.toLowerCase() === it.name.toLowerCase());
+    if (ex) { if (ex.qty !== qty) { ex.qty = qty; ni++; } } else { data.items.push({ id: uid(), name: it.name.slice(0, 40), qty }); ni++; }
+  });
+  save(); render(); e.target.code.value = "";
+  U.toast(`Wczytano: ${ne} spotkań, ${ni} zmian w magazynie`);
+});
+Host.onPayload((p) => { if (p.refresh) { data = U.load(KEY, data); render(); } });
+// domyślna data w formularzu: dziś za godzinę, pełna godzina
+const d = new Date(Date.now() + 3600000); d.setMinutes(0, 0, 0);
+$("#ev-add").at.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+render();
+setInterval(renderEvents, 60000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zarobki</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.add{display:grid;grid-template-columns:1.6fr repeat(3,1fr) auto;gap:10px;align-items:end}
+.add[data-mode=count]{grid-template-columns:1.6fr repeat(4,1fr) auto}
+.add[data-mode=exp]{grid-template-columns:1.6fr 1fr 1fr auto}
+.add:not([data-mode=count]) .m-count,.add[data-mode=count] .m-earn,.add[data-mode=exp] .m-time{display:none}
+.modes{margin-bottom:14px}
+.count-sum{grid-column:1/-1;color:var(--text-2);font-size:13px;min-height:18px}
+.stat.neg b{color:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+.stat{padding:18px 20px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line)}
+.stat label{display:block;font:600 12.5px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.stat b{display:block;margin-top:8px;font:700 36px/1 var(--display);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.stat small{display:block;margin-top:6px;color:var(--text-3);font-size:12.5px}
+.stat.lead b{color:var(--good)}
+.jobs{display:grid;gap:10px}
+.job{display:grid;grid-template-columns:180px 1fr 110px 120px;gap:14px;align-items:center}
+.job .name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.job .bar{height:12px;border-radius:4px;background:rgba(var(--fg-rgb),.06);overflow:hidden}
+.job .bar i{display:block;height:100%;border-radius:4px;background:var(--good);transform-origin:left;animation:grow 1s var(--ease) both;animation-delay:calc(var(--i) * 60ms + .2s)}
+.job:first-child .bar i{background:var(--accent)}
+@keyframes grow{from{transform:scaleX(0)}}
+.job .rate{font:700 20px var(--display);letter-spacing:.03em;text-align:right;font-variant-numeric:tabular-nums}
+.job .tot{color:var(--text-3);text-align:right;font-variant-numeric:tabular-nums}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.log li{display:grid;grid-template-columns:90px 1fr 110px 90px 32px;gap:12px;align-items:center;padding:10px 14px;border-radius:6px;background:var(--card);border:1px solid var(--line);animation:rise .45s var(--ease) both;animation-delay:calc(var(--i) * 25ms)}
+.log time{font:700 15px var(--display);letter-spacing:.04em;color:var(--text-2)}
+.log .amt{font:700 17px var(--display);color:var(--good);text-align:right}
+.log .amt.neg{color:var(--bad)}
+.log .min{color:var(--text-3);text-align:right}
+.log .qty{color:var(--text-3);font-size:12.5px}
+.log button{width:30px;height:30px;border-radius:4px;color:var(--text-3);display:grid;place-items:center}
+.log button:hover{background:rgba(255,90,106,.12);color:#ff8a96}
+.two{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+@media (max-width:1100px){.two{grid-template-columns:1fr}.job{grid-template-columns:130px 1fr 90px}.job .tot{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Zarobki</h1><p class="sub">Zapisuj zarobki, zebrane sztuki i wydatki. Zobaczysz, która praca płaci najwięcej na godzinę i ile zostaje na czysto.</p></div></div>
+  <section class="panel rise" style="--d:1">
+    <div class="chips modes" id="modes" role="tablist" aria-label="Rodzaj wpisu">
+      <button class="chip on" type="button" data-mode="earn" role="tab">Zarobek</button>
+      <button class="chip" type="button" data-mode="count" role="tab">Licznik (sztuki × cena)</button>
+      <button class="chip" type="button" data-mode="exp" role="tab">Wydatek</button>
+    </div>
+    <form class="add" id="add" autocomplete="off" data-mode="earn">
+      <label class="field"><span id="job-l">Praca</span><input type="text" name="job" list="jobs" maxlength="40" placeholder="np. Górnik"><datalist id="jobs"></datalist><datalist id="cats"><option value="Paliwo"><option value="Naprawa"><option value="Mandat"><option value="Jedzenie"><option value="Ubezpieczenie"><option value="Czynsz"><option value="Inne"></datalist></label>
+      <label class="field m-count"><span>Ilość (szt.)</span><input type="number" name="qty" min="1" placeholder="np. 40"></label>
+      <label class="field m-count"><span>Cena za sztukę ($)</span><input type="number" name="price" min="1" placeholder="np. 350"></label>
+      <label class="field m-earn"><span id="amt-l">Zarobek ($)</span><input type="number" name="amt" step="100" placeholder="np. 12000"></label>
+      <label class="field m-time"><span>Czas (min)</span><input type="number" name="min" min="1" max="1440" placeholder="np. 45"></label>
+      <label class="field"><span>Kiedy</span><select name="when"><option value="0">Dzisiaj</option><option value="1">Wczoraj</option><option value="2">2 dni temu</option></select></label>
+      <button class="btn primary">Dodaj</button>
+      <div class="count-sum" id="count-sum" aria-live="polite"></div>
+    </form>
+  </section>
+  <div id="out"></div>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc, uid, money } = U;
+const KEY = "majestic-zarobki-v1";
+const JOBS = ["Górnik", "Rolnik", "Drwal", "Rybak", "Grzybiarz", "Zbieractwo", "Myśliwy", "Listonosz", "Śmieciarz", "Kierowca autobusu", "Kierowca ciężarówki", "Taksówka", "Inkasent", "Mechanik", "Biznes", "Handel", "Inne"];
+let log = U.load(KEY, []);
+const DAY = 86400000;
+const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
+function render() {
+  $("#jobs").innerHTML = [...new Set([...log.map((l) => l.job), ...JOBS])].map((j) => `<option value="${esc(j)}">`).join("");
+  if (!log.length) { $("#out").innerHTML = `<div class="panel empty rise" style="--d:2"><b>Brak wpisów</b>Dodaj pierwszy zarobek, np. „Górnik, 12000, 45 min”.</div>`; return; }
+  const today = dayStart(Date.now()), week = today - ((new Date(today).getDay() + 6) % 7) * DAY;
+  const sum = (from) => log.filter((l) => l.at >= from).reduce((a, l) => a + l.amt, 0);
+  const work = log.filter((l) => l.kind !== "exp"), spentWeek = -log.filter((l) => l.kind === "exp" && l.at >= week).reduce((a, l) => a + l.amt, 0);
+  const total = log.reduce((a, l) => a + l.amt, 0), mins = work.reduce((a, l) => a + (l.min || 0), 0), gross = work.reduce((a, l) => a + l.amt, 0);
+  const byJob = {};
+  work.forEach((l) => { const j = (byJob[l.job] ||= { job: l.job, amt: 0, min: 0, n: 0 }); j.amt += l.amt; j.min += l.min || 0; j.n++; });
+  const jobs = Object.values(byJob).filter((j) => j.min).map((j) => ({ ...j, rate: j.amt / (j.min / 60) })).sort((a, b) => b.rate - a.rate);
+  const maxRate = Math.max(...jobs.map((j) => j.rate), 1);
+  $("#out").innerHTML = `
+    <div class="stats">
+      <div class="stat lead rise ${sum(today) < 0 ? "neg" : ""}" style="--d:2"><label>Dzisiaj na czysto</label><b>${money(sum(today))}</b><small>${log.filter((l) => l.at >= today).length} wpisów</small></div>
+      <div class="stat rise" style="--d:3"><label>Ten tydzień na czysto</label><b>${money(sum(week))}</b><small>od poniedziałku</small></div>
+      <div class="stat neg rise" style="--d:4"><label>Wydatki w tym tygodniu</label><b>${money(spentWeek)}</b><small>paliwo, naprawy, mandaty…</small></div>
+      <div class="stat rise" style="--d:5"><label>Średnio na godzinę</label><b>${mins ? money(gross / (mins / 60)) : "—"}</b><small>razem na czysto: ${money(total)}</small></div>
+    </div>
+    <div class="two">
+      <section class="panel rise" style="--d:6"><h2>Najbardziej opłacalne ($ / godz.)</h2>
+        <div class="jobs">${jobs.map((j, i) => `<div class="job"><span class="name">${esc(j.job)}</span><span class="bar"><i style="width:${(j.rate / maxRate) * 100}%;--i:${i}"></i></span><span class="rate">${money(j.rate)}</span><span class="tot">${money(j.amt)} · ${j.n}×</span></div>`).join("") || `<p class="empty">Podawaj czas pracy, żeby policzyć stawkę.</p>`}</div></section>
+      <section class="panel rise" style="--d:7"><h2>Ostatnie wpisy</h2>
+        <ul class="log">${log.slice().sort((a, b) => b.at - a.at).slice(0, 40).map((l, i) => `<li style="--i:${Math.min(i, 15)}"><time>${new Date(l.at).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}</time><span>${esc(l.job)}${l.qty ? ` <small class="qty">${l.qty} szt. × ${money(l.price)}</small>` : ""}</span><span class="amt ${l.amt < 0 ? "neg" : ""}">${money(l.amt)}</span><span class="min">${l.min ? l.min + " min" : "—"}</span><button data-del="${l.id}" title="Usuń wpis"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join("")}</ul></section>
+    </div>`;
+}
+/* tryby formularza: zarobek, licznik sztuk, wydatek */
+const MODE_TXT = { earn: ["Praca", "Zarobek ($)", "np. Górnik", "jobs"], count: ["Praca", "Zarobek ($)", "np. Zbieractwo: kraby", "jobs"], exp: ["Na co", "Kwota ($)", "np. Paliwo", "cats"] };
+function setMode(m) {
+  const f = $("#add"); f.dataset.mode = m;
+  document.querySelectorAll("#modes [data-mode]").forEach((b) => { b.classList.toggle("on", b.dataset.mode === m); b.setAttribute("aria-selected", b.dataset.mode === m); });
+  const [jl, al, ph, list] = MODE_TXT[m];
+  $("#job-l").textContent = jl; $("#amt-l").textContent = al; f.job.placeholder = ph; f.job.setAttribute("list", list);
+  updateCount();
+}
+function updateCount() {
+  const f = $("#add"), q = +f.qty.value, pr = +f.price.value;
+  $("#count-sum").textContent = f.dataset.mode === "count" && q && pr ? `Razem: ${money(q * pr)}` : "";
+}
+$("#modes").addEventListener("click", (e) => { const b = e.target.closest("[data-mode]"); if (b) setMode(b.dataset.mode); });
+$("#add").addEventListener("input", updateCount);
+$("#add").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = e.target, mode = f.dataset.mode, job = f.job.value.trim(), min = mode === "exp" ? 0 : Math.round(+f.min.value) || 0;
+  const qty = Math.round(+f.qty.value), price = Math.round(+f.price.value);
+  let amt = mode === "count" ? qty * price : Math.round(Math.abs(+f.amt.value));
+  if (!job) return U.toast(mode === "exp" ? "Wpisz, na co wydałeś" : "Podaj pracę");
+  if (!amt) return U.toast(mode === "count" ? "Podaj ilość i cenę za sztukę" : "Podaj kwotę");
+  const entry = { id: uid(), job, amt: mode === "exp" ? -amt : amt, min, at: Date.now() - (+f.when.value) * DAY };
+  if (mode === "exp") entry.kind = "exp";
+  if (mode === "count") Object.assign(entry, { qty, price });
+  log.push(entry);
+  U.save(KEY, log); f.amt.value = ""; f.min.value = ""; f.qty.value = ""; updateCount(); render();
+  U.toast(mode === "exp" ? `Wydatek: ${job} ${money(-amt)}` : `Zapisano: ${job} ${money(amt)}`);
+});
+$("#out").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { log = log.filter((l) => l.id !== b.dataset.del); U.save(KEY, log); render(); } });
+// po zakończonej sesji główne okno podaje jej długość
+Host.onPayload((p) => {
+  if (!p.sessionMin) return;
+  const f = $("#add"); f.min.value = p.sessionMin; f.when.value = "0";
+  f.amt.focus(); U.toast(`Sesja trwała ${p.sessionMin} min. Wpisz pracę i zarobek`);
+});
+render();
+})();
+</script>
+</body>
+</html>

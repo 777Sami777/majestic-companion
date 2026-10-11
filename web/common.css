@@ -1,0 +1,119 @@
+/* Wspólny wygląd zakładek Minutniki, Zarobki, RP i Ustawienia */
+:root{--fg-rgb:233,239,248;--bg:#0a1424;--bg-2:#0f1d33;--card:#13243e;--card-2:#182c4a;--line:rgba(var(--fg-rgb),.07);--line-2:rgba(var(--fg-rgb),.13);--text:#e9eff8;--text-2:#b4c0d3;--text-3:#8d9bb3;--accent:#2563eb;--accent-ink:#ffffff;--good:#22c55e;--bad:#ef4444;--ease:cubic-bezier(.16,1,.3,1);--ease-in:cubic-bezier(.7,0,.84,0);--shadow:0 16px 40px -16px rgba(0,0,0,.75),0 3px 10px -4px rgba(0,0,0,.5);--display:Bahnschrift,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+html.light{color-scheme:light}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:500 14px/1.45 "Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{background:var(--bg)}
+::selection{background:var(--accent);color:var(--accent-ink)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+*{scrollbar-width:thin;scrollbar-color:rgba(var(--fg-rgb),.14) transparent}
+.wrap{max-width:1180px;margin:0 auto;padding:30px 34px 50px}
+.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+h1{margin:0;font:700 52px/1 var(--display);letter-spacing:.02em;text-transform:uppercase}
+.sub{margin:10px 0 0;color:var(--text-2);max-width:70ch}
+h2{margin:0 0 14px;font:600 13px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.panel{padding:22px 24px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line);margin-bottom:14px}
+.grid{display:grid;gap:14px}
+.rise{animation:rise .7s var(--ease) both;animation-delay:calc(var(--d,0) * 70ms)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 16px;border-radius:6px;font-weight:700;white-space:nowrap;transition:transform .3s var(--ease),background .2s,color .2s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{background:color-mix(in srgb,var(--accent) 85%,#000)}
+.btn.ghost{background:rgba(var(--fg-rgb),.05);color:var(--text-2)}
+.btn.ghost:hover{background:rgba(var(--fg-rgb),.09);color:var(--text)}
+.btn.danger{background:rgba(255,90,106,.12);color:#ff8a96}
+.btn.danger:hover{background:rgba(255,90,106,.2)}
+.btn.small{height:34px;padding:0 12px;font-size:13px;border-radius:6px}
+.field{display:grid;gap:7px;min-width:0}
+.field>span{font:600 12.5px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+input[type=text],input[type=number],input[type=datetime-local],select,textarea{width:100%;padding:11px 13px;border-radius:6px;background:var(--card);border:1px solid var(--line);outline:0;font-weight:600;transition:border-color .25s,box-shadow .3s var(--ease)}
+textarea{min-height:90px;resize:vertical;font-weight:500;line-height:1.55}
+input:focus,select:focus,textarea:focus{border-color:color-mix(in srgb,var(--accent) 55%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 10%,transparent)}
+input::placeholder,textarea::placeholder{color:var(--text-3);font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:6px;background:var(--card);border:1px solid transparent;font-size:13px;font-weight:700;color:var(--text-2);transition:background .2s,border-color .25s,color .2s,transform .3s var(--ease)}
+.chip:hover{color:var(--text);background:var(--card-2)}
+.chip.on{border-color:var(--c,var(--accent));background:color-mix(in srgb,var(--c,var(--accent)) 15%,transparent);color:var(--text)}
+.chip:active{transform:scale(.95)}
+.empty{padding:34px 10px;text-align:center;color:var(--text-3);line-height:1.6}
+.empty b{display:block;color:var(--text);font:700 24px var(--display);margin-bottom:6px;letter-spacing:.03em}
+.num{font-variant-numeric:tabular-nums}
+#toasts{position:fixed;z-index:50;bottom:22px;left:50%;transform:translateX(-50%);display:grid;gap:8px;justify-items:center;pointer-events:none}
+.toast{display:flex;align-items:center;gap:10px;padding:12px 16px 12px 13px;border-radius:6px;background:var(--card-2);border:1px solid var(--line-2);box-shadow:var(--shadow);font-weight:700;animation:toastIn .5s var(--ease)}
+.toast svg{color:var(--accent)}
+.toast.bye{animation:toastOut .35s var(--ease-in) forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(14px) scale(.96)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.96)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+
+.light .btn.danger{color:#b4233a}
+.light .card-badge{filter:brightness(.62) saturate(1.3)}
+.light .tag{filter:brightness(.62) saturate(1.3)}
+
+/* ---------- dopracowanie: tło z mapą Los Santos, powierzchnie przeglądarki, głębia paneli ---------- */
+body{position:relative;isolation:isolate}
+body::before{content:"";position:fixed;z-index:-1;top:-12vh;right:-18vw;width:min(1300px,110vw);aspect-ratio:1;pointer-events:none;
+  background:url(mapa/tiles/atlas/1/0/0.webp) 0 0/50% 50% no-repeat,url(mapa/tiles/atlas/1/1/0.webp) 100% 0/50% 50% no-repeat,
+    url(mapa/tiles/atlas/1/0/1.webp) 0 100%/50% 50% no-repeat,url(mapa/tiles/atlas/1/1/1.webp) 100% 100%/50% 50% no-repeat;
+  filter:grayscale(1) contrast(1.4);opacity:.07;mix-blend-mode:screen;
+  -webkit-mask:radial-gradient(closest-side,#000 35%,transparent);mask:radial-gradient(closest-side,#000 35%,transparent)}
+html.light body::before{mix-blend-mode:multiply;opacity:.09}
+html{caret-color:var(--accent);accent-color:var(--accent)}
+*{scrollbar-color:rgba(var(--fg-rgb),.12) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(var(--fg-rgb),.12);border-radius:6px;border:3px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background-color:rgba(var(--fg-rgb),.22)}
+::-webkit-scrollbar-track{background:transparent}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield;font-variant-numeric:tabular-nums}
+:focus-visible{outline-color:var(--accent);outline-offset:3px}
+.panel{background:linear-gradient(180deg,rgba(var(--fg-rgb),.025),transparent 120px),var(--bg-2);
+  box-shadow:inset 0 1px 0 rgba(var(--fg-rgb),.05),0 18px 40px -24px rgba(0,0,0,.8)}
+html.light .panel{box-shadow:inset 0 1px 0 #fff,0 14px 30px -22px rgba(10,14,30,.35)}
+h1{text-wrap:balance}
+.sub{text-wrap:pretty}
+.btn.primary{box-shadow:0 8px 20px -10px color-mix(in srgb,var(--accent) 70%,transparent)}
+.btn.primary:hover{background:color-mix(in srgb,var(--accent) 85%,#000)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.empty{border:1px dashed var(--line-2);border-radius:8px;background:rgba(var(--fg-rgb),.015)}
+.panel .empty,li.empty{border:0;background:none}
+
+/* ---------- MDT: terminal gracza (granat, Bahnschrift, gęste wiersze, małe promienie) ---------- */
+html{font-stretch:semi-condensed}
+html,body{font-family:var(--body,"Segoe UI",system-ui,sans-serif);font-weight:400}
+body::before{opacity:.05;filter:grayscale(1) brightness(1.4)}
+.wrap{max-width:1240px;padding:22px 28px 44px}
+.hero{align-items:center;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line-2)}
+h1{font:700 30px/1.05 var(--display);letter-spacing:.03em}
+.sub{margin-top:6px;font-size:13.5px;color:var(--text-2)}
+h2{display:flex;align-items:center;gap:10px;margin:-22px -24px 16px;padding:11px 24px;border-bottom:1px solid var(--line);background:rgba(var(--fg-rgb),.035);font:600 13.5px var(--display);letter-spacing:.07em;color:var(--text-2)}
+h2 span{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--text-3)}
+.panel{padding:22px 24px;border-radius:6px;background:var(--bg-2);border:1px solid var(--line-2);box-shadow:0 10px 26px -18px rgba(0,0,0,.8)}
+.panel>h2:first-child{border-radius:6px 6px 0 0}
+.btn{height:36px;padding:0 14px;border-radius:4px;font:600 14px var(--display);letter-spacing:.03em}
+.btn.primary{box-shadow:none}
+.btn.small{height:30px;border-radius:4px}
+.field>span{font:600 12px var(--display);letter-spacing:.07em;color:var(--text-3)}
+input[type=text],input[type=number],input[type=datetime-local],select,textarea{padding:9px 11px;border-radius:4px;background:var(--input,#0b1729);border:1px solid var(--line-2);font-weight:400}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.chip{border-radius:4px;font-family:var(--display);font-weight:600}
+.empty{border-radius:6px}
+.empty b{font:600 19px var(--display);letter-spacing:.02em}
+.toast{border-radius:6px;font-weight:600}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th{font:600 12px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line-2)}
+td{padding:9px 10px;border-bottom:1px solid var(--line)}
+html.light input[type=text],html.light input[type=number],html.light input[type=datetime-local],html.light select,html.light textarea{background:#fff}
+html.light h2{background:rgba(var(--fg-rgb),.05)}
+
+/* motyw Weazel News: nagłówki paneli jak czerwone paski wiadomości */
+html[data-theme=weazel] h2{background:var(--accent);color:#fff;border-bottom:0;font-weight:700}
+html[data-theme=weazel] h2 span{color:rgba(255,255,255,.85)}
+html[data-theme=weazel] .hero{border-bottom:3px solid var(--accent)}
+html[data-theme=weazel] h1{font-style:italic}
+kbd{font:500 11.5px var(--display);padding:1px 6px;border:1px solid var(--line-2);border-radius:3px;color:var(--text-3)}

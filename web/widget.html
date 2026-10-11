@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Majestic Widget</title>
+<style>
+:root{--bg:#0a1424;--text:#e9eff8;--text-3:#8d9bb3;--accent:#2563eb;--good:#22c55e;--line:rgba(255,255,255,.1)}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:700 12px "Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+.w{display:grid;grid-template-columns:1fr 1fr auto;height:100%;align-items:stretch;border:1px solid var(--line);box-sizing:border-box;animation:in .5s cubic-bezier(.16,1,.3,1)}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}}
+.cell{display:grid;align-content:center;gap:3px;padding:0 14px;border-right:1px solid var(--line);min-width:0;-webkit-app-region:drag}
+.cell label{display:flex;align-items:center;gap:6px;font:700 11.5px Bahnschrift,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.cell b{font:700 22px/1 Bahnschrift,sans-serif;letter-spacing:.03em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell small{color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:7px;height:7px;border-radius:50%;background:#5c6272}
+.on .dot{background:var(--good);box-shadow:0 0 0 3px rgba(61,220,151,.2)}
+.on b{color:var(--good)}
+.t b{color:var(--accent)}
+.side{display:grid;grid-template-rows:1fr 1fr}
+.side button{width:34px;border:0;background:none;color:var(--text-3);cursor:pointer;display:grid;place-items:center}
+.side button:hover{color:var(--text);background:rgba(255,255,255,.06)}
+svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="cell" id="game"><label><i class="dot"></i><span id="g-label">Offline</span></label><b id="g-time">—</b></div>
+  <div class="cell t"><label>Minutnik</label><b id="t-left">—</b><small id="t-name">brak</small></div>
+  <div class="side">
+    <button id="open" title="Pokaż Majestic Companion"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M10 6H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg></button>
+    <button id="close" title="Zamknij widżet"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+</div>
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const api = () => window.pywebview && window.pywebview.api;
+let game = { running: false };
+const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; };
+function tick() {
+  const s = game.session;
+  $("#game").classList.toggle("on", !!game.running);
+  $("#g-label").textContent = game.running ? (s && s.server) || "W grze" : "Offline";
+  $("#g-time").textContent = game.running && s ? fmt(Date.now() - (s.connected ? s.joined : s.start)) : "—";
+  let timers = []; try { timers = JSON.parse(localStorage.getItem("majestic-minutniki-v1")) || []; } catch {}
+  const next = timers.filter((t) => t.end > Date.now()).sort((a, b) => a.end - b.end)[0];
+  $("#t-left").textContent = next ? fmt(next.end - Date.now()) : "—";
+  $("#t-name").textContent = next ? next.name : "brak aktywnych";
+  try { const p = JSON.parse(localStorage.getItem("majestic-wyglad-v1")) || {}; if (p.accent) document.documentElement.style.setProperty("--accent", p.accent); } catch {}
+}
+async function poll() { const a = api(); if (a) { try { game = await a.game_status(); } catch {} } }
+$("#close").onclick = () => api() && api().close_widget();
+$("#open").onclick = () => api() && api().show_main();
+window.addEventListener("pywebviewready", poll);
+setInterval(tick, 1000); setInterval(poll, 15000); tick();
+})();
+</script>
+</body>
+</html>

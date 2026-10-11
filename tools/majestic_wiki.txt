@@ -1,0 +1,396 @@
+0;Farma #4;farm;2852;4621
+1;Farma #1;farm;2384;4718
+2;undefined;farm;2555;4790
+3;Pokój wolnego celu;free-premises;2555;4651
+4;Farma #7;farm;2528;4361
+5;Strefa wędkarska (poziom 8);fishing;4221;4385
+6;undefined;gas-station;3829;4462
+7;undefined;boat-station;3865;4466
+8;Złomowisko;utilization;3889;4443
+9;Farma #6;farm;2608;4442
+10;undefined;anchor;3816;4476
+11;Strefa wędkarska (poziom 8);fishing;3840;4490
+12;Wynajem samochodów;car-rent;2470;4612
+13;undefined;craft-s-3;2674;3515
+14;Warsztat samochodowy;auto-repair;2502;4099
+15;Craft z materiałów technicznych.;craft-s-3;2703;3455
+16;Stacja benzynowa #15;gas-station;2674;3267
+17;Craft z materiałów do broni;craft-s-2;2464;4101
+18;Sklep całodobowy #7;grocery-store;2681;3279
+19;undefined;craft-1;3618;3732
+20;Karierowicz;job;2952;2753
+21;Strefa wędkarska (poziom 5);fishing;2368;4285
+22;undefined;pvz;1716;4798
+23;Farma #5;farm;1876;4806
+24;Farma #8;farm;2037;4909
+25;Rolnik;job;2035;4983
+26;undefined;farm;2328;5004
+27;Skup green;nettle-grower;2221;5613
+28;Farma #3;farm;2306;5127
+29;Sklep całodobowy #13;grocery-store;1728;6412
+30;Stacja benzynowa #14;gas-station;1706;6426
+31;Sklep całodobowy #8;grocery-store;1968;3741
+32;Salon tatuażu #5;tattoo;1860;3747
+33;Sklep z bronią #10;gunshop;1701;3753
+34;Stacja benzynowa #17;gas-station;1997;3780
+35;Serwis samochodowy dla transportu komercyjnego;truck-spawn;1966;3782
+36;Wynajem samochodów;car-rent;1958;4653
+37;Pokój wolnego celu;free-premises;1710;4728
+38;Rynek;market;1791;4601
+39;Farma #2;farm;2038;4794
+40;Sheriff Department;lscsd;1848;3690
+41;Barbershop #5;barbershop;1932;3722
+42;Klub motocyklowy;biker;1991;3054
+43;Emergency Medical Services;ems;1827;3681
+44;Światowe zadania #3;quests;1963;3699
+45;Autoserwis #9;autoservice;1738;3710
+46;Lądowisko helikopterów;aircraft-spawn;1759;3298
+47;undefined;gas-station;1758;3239
+48;Stacja benzynowa #27;gas-station;1777;3328
+49;Craft z materiałów medycznych;craft-s-1;757;4178
+50;Wynajem łodzi;boat-rent;1320;4315
+51;Craft z materiałów medycznych;craft-s-1;1426;6350
+52;Pokój wolnego celu;free-premises;404;6498
+53;Sklep odzieżowy #7;clothing-store;1687;4819
+54;Strefa wędkarska (poziom 7);fishing;334;7395
+55;Bar;bar;1595;6454
+56;Stacja benzynowa #26;gas-station;1694;4924
+57;Sklep całodobowy #12;grocery-store;1700;4932
+58;undefined;craft-s-2;315;2868
+59;Wynajem samochodów;car-rent;1539;3767
+60;undefined;free-premises;943;3613
+61;undefined;car-washing;1369;3599
+62;Sklep całodobowy #9;grocery-store;1397;3600
+63;Craft z materiałów technicznych;craft-s-3;1520;3595
+64;Spawn;spawn;1530;3773
+65;undefined;free-premises;715;4176
+66;undefined;craft-s-1;735;4178
+67;Bank;bank;1175;2707
+68;Sklep całodobowy #10;grocery-store;1164;2703
+69;Salon samochodowy;custom;1229;2725
+70;Sklep całodobowy #11;grocery-store;547;2674
+71;Sklep odzieżowy #12;clothing-store;1190;2702
+72;Wynajem samochodów;car-rent;585;2719
+73;Sklep odzieżowy #9;clothing-store;616;2748
+74;Spawn;spawn;581;2734
+75;undefined;pvz;585;2778
+76;Craft z materiałów do broni;craft-s-2;2727;1463
+77;undefined;craft-2;2786;1581
+78;Pokój wolnego celu;free-premises;1546;2166
+79;Więzienie federalne;jail;1702;2579
+80;Grzyby #4;mushrooms;1686;2225
+81;Craft z materiałów medycznych;craft-s-1;2545;2582
+82;Wynajem samochodu;car-rent;2554;2613
+83;Wynajem samochodów;car-rent;1853;2582
+84;Górnik;job;1353;-258
+85;Sklep z bronią #7;gunshop;2567;304
+86;undefined;free-premises;2580;491
+87;Sklep całodobowy #6;grocery-store;2560;382
+88;Stacja benzynowa #10;gas-station;2560;373
+89;Craft z materiałów medycznych;craft-s-1;1908;573
+90;Strefa wędkarska (poziom 9);fishing;3594;1080
+91;Las;forest;2527;1138
+92;Rezydencja;mansion;1395;1142
+93;Craft z materiałów technicznych;craft-s-3;1245;-3165
+94;Salon tatuażu #2;tattoo;1323;-1648
+95;Grzyby #6;mushrooms;1740;-2540
+96;Lotnisko;airport;4496;-4520
+97;Farma #9;farm;5343;-5245
+98;Strefa wędkarska (poziom 9);fishing;2837;-662
+99;undefined;free-premises;1694;-1664
+100;Federal Investigation Bureau;fib;2488;-382
+101;Autoserwis #12;autoservice;2572;-306
+102;Stacja benzynowa #19;gas-station;1168;-325
+103;Klub motocyklowy;biker;988;-96
+104;Postój dla taksówek;job;895;-181
+105;Autoserwis #5;autoservice;919;-21
+106;Warsztat Los Santos Customs #4;lsc;1178;2646
+107;Stacja benzynowa #23;gas-station;1039;2664
+108;Stacja benzynowa #24;gas-station;1201;2656
+109;Kasyno;casino;925;46
+110;Bar;bar;988;80
+111;Pokój wolnego celu;free-premises;1231;-1083
+112;Sklep z bronią #2;gunshop;842;-1022
+113;Globalne zadania #2;quests;1146;-650
+114;Barbershop #3;barbershop;1205;-474
+115;Sklep całodobowy #5;grocery-store;1143;-983
+116;Salon motocyklowy;bike-spawn;1125;-777
+117;Wynajem samochodów;car-rent;1237;-333
+118;Sklep całodobowy #19;grocery-store;1163;-327
+119;undefined;pvz;872;-889
+120;Los Santos Vagos;vagos;976;-1840
+121;Magazyn #4;warehouse;1183;-3322
+122;Praca kierowcy ciężarówki;job;1196;-3255
+123;Odholownik dla ciężarówek;truck-spawn;1000;-2362
+124;undefined;craft-2;1081;-2324
+125;Marabunta Grande;marabunta;1007;-2543
+126;Emergency Medical Services;ems;1153;-1541
+127;Stacja benzynowa #4;gas-station;1209;-1389
+128;Autoserwis #6;autoservice;1190;-1361
+129;undefined;job;687;62
+130;Autoserwis #4;autoservice;599;90
+131;Salon tatuażu #1;tattoo;319;179
+132;Kino;cinema;340;176
+133;Stacja benzynowa #5;gas-station;647;270
+134;Bukmacher;betting;500;127
+135;Sklep całodobowy #4;grocery-store;379;322
+136;Wynajem samochodów;car-rent;685;600
+137;undefined;free-premises;822;2191
+138;Stacja benzynowa #3;gas-station;821;-1040
+139;Los Santos Police Department;lspd;428;-981
+140;Kino;cinema;395;-714
+141;Sklep odzieżowy #14;clothing-store;418;-809
+142;undefined;spawn;431;-630
+143;Warsztat samochodowy;auto-repair;534;-182
+144;;car-point;534;-34
+145;Wynajem samochodów;car-rent;415;-622
+146;Rezydencja;mansion;388;3
+147;Wynajem samochodów;car-rent;794;-3020
+148;Magazyn #7;warehouse;822;-3188
+149;Strefa driftu;drift;822;-3029
+150;Kontenery;container;838;-2927
+151;Sklep z bronią #1;gunshop;814;-2147
+152;Strefa driftu;drift;784;-1868
+153;;car-point;407;-1640
+154;The Bloods Gang;bloods;497;-1339
+155;Warsztat Los Santos Customs #2;lsc;723;-1084
+156;Spawn;spawn;-152;6431
+157;Bank;bank;-112;6469
+158;Sklep odzieżowy #8;clothing-store;-3;6516
+159;Warsztat Los Santos Customs #5;lsc;112;6620
+160;Sklep całodobowy #21;grocery-store;166;6632
+161;Stacja benzynowa #12;gas-station;158;6640
+162;Strefa wędkarska (poziom 7);fishing;95;7216
+163;Grzyby #2;mushrooms;103;6869
+164;Strefa wędkarska (poziom 4);fishing;260;3646
+165;Strefa wędkarska (poziom 4);fishing;-142;3902
+166;;pvz;-131;6203
+167;Odholownik dla ciężarówek;truck-spawn;-2;6307
+168;Sklep całodobowy #22;grocery-store;-153;6325
+169;Praca kierowcy ciężarówki;job;75;6355
+170;undefined;free-premises;99;6370
+171;Stacja benzynowa #13;gas-station;-93;6410
+172;Myjnia;car-washing;-75;6421
+173;undefined;craft-3;-42;1881
+174;Stacja benzynowa #22;gas-station;46;2789
+175;undefined;special-tuning;172;2753
+176;Stacja benzynowa #20;gas-station;266;2598
+177;Warsztat samochodowy;auto-repair;258;2591
+178;Pokój wolnego celu;free-premises;151;2282
+179;;car-point;212;2805
+180;Craft z materiałów do broni;craft-s-2;274;2882
+181;Las;forest;-27;3354
+182;undefined;job;-378;6108
+183;Kościół #2;church;-330;6166
+184;Wynajem łodzi;boat-rent;-291;6657
+185;Salon tatuażu #6;tattoo;-290;6202
+186;Barbershop #2;barbershop;-285;6231
+187;Emergency Medical Services;ems;-233;6317
+188;Warsztat samochodowy;auto-repair;-216;6199
+189;Autoserwis samochodowy #10;autoservice;-215;6219
+190;Wynajem samochodu;car-rent;-178;6435
+191;Grzyby #1;mushrooms;-616;5781
+192;Craft z materiałów do broni;craft-s-2;-671;5794
+193;Sheriff Department;lscsd;-447;6010
+194;;car-point;-453;6045
+195;Wynajem samochodów;car-rent;-685;5817
+196;Rynek;market;-729;5814
+197;undefined;arm;-383;6034
+198;undefined;quests;-749;5784
+199;Sklep z bronią #11;gunshop;-326;6074
+200;Strefa driftu;drift;-432;1203
+201;Sklep odzieżowy #4;clothing-store;-1097;2704
+202;Kościół #3;church;-318;2804
+203;Drwal;job;-841;5401
+204;Strefa wędkarska (poziom 2);fishing;-873;4433
+205;Las;forest;-414;4764
+206;Las;forest;-723;5364
+207;Strefa wędkarska (poziom 2);fishing;-966;4361
+208;Grzybiarz;job;-618;5674
+209;Strefa wędkarska (poziom 2);fishing;-1177;4375
+210;Strefa wędkarska (poziom 6);fishing;-2354;4417
+211;undefined;anchor;-1604;5200
+212;undefined;boat-station;-1599;5267
+213;Grzyby #3;mushrooms;-1541;4428
+214;Strefa wędkarska (poziom 1);fishing;-1650;4456
+215;Strefa wędkarska (poziom 6);fishing;-2514;5348
+216;Pokój wolnego celu;free-premises;-1101;4941
+217;Rybak;job;-1681;4463
+218;Grzyby #5;mushrooms;-2438;2748
+219;undefined;custom;-1586;2776
+220;undefined;autoservice;-2242;3326
+221;San-Andreas National Guard;sang;-2360;3246
+222;undefined;custom;-2319;3404
+223;Wynajem samochodów;car-rent;-2202;4275
+224;Craft z materiałów technicznych;craft-s-3;-2167;4284
+225;Strefa wędkarska (poziom 1);fishing;-1414;4319
+226;Strefa wędkarska (poziom 1);fishing;-1548;4346
+227;Stacja benzynowa #11;gas-station;-2544;2316
+228;Strefa wędkarska (poziom 3);fishing;-2096;2614
+229;Strefa driftu;drift;-2977;1304
+230;Spawn;spawn;-3135;1137
+231;Rezydencja;mansion;-1888;2050
+232;Strefa wędkarska (poziom 3);fishing;-1769;2659
+233;undefined;wolf;-1130;2682
+234;Sklep z bronią #9;gunshop;-1114;2689
+235;undefined;job;-1127;2683
+236;Salon samochodowy;auto-shop;-66;62
+237;Bar;bar;6;220
+238;Bar;bar;-430;262
+239;Bank;bank;248;223
+240;Bar;bar;-565;277
+241;Pokój wolnego celu;free-premises;-562;295
+242;undefined;pvz;-286;317
+243;Strefa wędkarska (poziom 5);fishing;177;871
+244;Sklep odzieżowy #1;clothing-store;131;-209
+245;Government;government;-541;-193
+246;Sąd;court;-574;-208
+247;Barbershop #1;barbershop;-34;-145
+248;Warsztat Los Santos Customs #6;lsc;-349;-135
+249;Autoserwis #3;autoservice;-350;-119
+250;Salon samochodowy;auto-shop;-477;-94
+251;Sklep z bronią #6;gunshop;243;-47
+252;Bank;bank;-351;-50
+253;Biuro #1;office;-71;-801
+254;Praca inkasenta;job;-27;-677
+255;Apartament #2;apartment;-45;-587
+256;Weazel News;weazle-news;-587;-922
+257;Listonosz;job;-234;-914
+258;Autoserwis #2;autoservice;-351;-875
+259;Biuro #2;office;-117;-605
+260;Sklep odzieżowy #2;clothing-store;-154;-304
+261;Bank;bank;314;-279
+262;Barbershop #6;barbershop;-824;-191
+263;Sklep odzieżowy #5;clothing-store;-718;-156
+264;Bar;bar;-601;279
+265;Wynajem samochodów;car-rent;-1235;-178
+266;Apartament #1;apartment;-771;319
+267;Spawn;spawn;-1296;276
+268;Wynajem samochodów;car-rent;-1309;266
+269;Spawn;spawn;-1223;-174
+270;Apartament #5;apartment;-615;46
+271;undefined;autoservice;-1175;-727
+272;Sklep z bronią #5;gunshop;-1316;-392
+273;Biuro #4;office;-1379;-499
+274;Bar;bar;-1386;-590
+275;Warsztat samochodowy;auto-repair;-1417;-446
+276;Apartament #4;apartment;-936;-379
+277;Sklep odzieżowy #15;clothing-store;-724;-372
+278;Bank;bank;-1213;-331
+279;Salon samochodowy;auto-shop;-804;-222
+280;Rejestracja pojazdu;vehicle-registration;-1057;-836
+281;Parking kar;parking-fine;-1123;-851
+282;;car-point;-1050;-861
+283;Sklep całodobowy #2;grocery-store;-1216;-908
+284;Sklep całodobowy #18;grocery-store;-703;-917
+285;Stacja benzynowa #9;gas-station;-708;-917
+286;undefined;lspd;-1084;-829
+287;Sklep odzieżowy #10;clothing-store;-1205;-777
+288;Apartament #7;apartment;-763;-754
+289;Sklep całodobowy #15;grocery-store;-3037;588
+290;Sklep całodobowy #17;grocery-store;-1820;790
+291;Sklep całodobowy #14;grocery-store;-3239;1002
+292;Rezydencja;mansion;-1517;852
+293;Sklep odzieżowy #13;clothing-store;-3165;1058
+294;Stacja benzynowa #16;gas-station;-1817;792
+295;Salon tatuażu #4;tattoo;-3168;1072
+296;Wynajem samochodów;car-rent;-3132;1130
+297;Sklep z bronią #8;gunshop;-3163;1084
+298;Sklep odzieżowy #6;clothing-store;-1455;-230
+299;Rezydencja;mansion;-1537;130
+300;Rezydencja;mansion;-3024;81
+301;Kino;cinema;-1423;-213
+302;Uniwersytet;university;-1617;194
+303;Rynek - Marketplace;marketplace;-2324;294
+304;Sklep całodobowy #16;grocery-store;-2974;393
+305;Bank;bank;-2963;483
+306;Autoserwis #11;autoservice;-2321;412
+307;Rynek samochodowy;car-market;-1593;-865
+308;Kościół #1;church;-1675;-283
+309;Autoserwis #8;autoservice;-2032;-468
+310;Stacja benzynowa #1;gas-station;-2073;-325
+311;Sklep całodobowy #3;grocery-store;-1490;-386
+312;Biuro #3;office;-1581;-559
+313;Stacja benzynowa #21;gas-station;-1427;-271
+314;Apartament #3;apartment;-1448;-538
+315;Pokój wolnego celu;free-premises;-2023;-255
+316;undefined;arm;-75;-1330
+317;Klub ze striptizem;strip-club;134;-1308
+318;Stacja benzynowa #6;gas-station;289;-1269
+319;Salon samochodowy;auto-shop;-175;-1159
+320;Sklep z bronią #3;gunshop;15;-1115
+321;undefined;autoservice;108;-1070
+322;Salon samochodowy;auto-shop;-42;-1108
+323;Bank;bank;150;-1041
+324;Myjnia;car-washing;171;-1723
+325;Myjnia;car-washing;-3;-1397
+326;undefined;job;208;-1650
+327;Stacja benzynowa #8;gas-station;164;-1557
+328;Barbershop #4;barbershop;135;-1715
+329;Salon samochodowy;auto-shop;-44;-1672
+330;Warsztat samochodowy;auto-repair;-209;-1391
+331;Sklep odzieżowy #11;clothing-store;83;-1390
+332;Sklep całodobowy #1;grocery-store;27;-1350
+333;Wynajem samochodów;car-rent;298;-2534
+334;Magazyn #9;warehouse;257;-3062
+335;undefined;auto-repair;-81;-2787
+336;Craft z materiałów do broni.;craft-s-2;228;-3314
+337;undefined;special-tuning;-24;-2776
+338;Pokój wolnego celu;free-premises;137;-2473
+339;Stacja benzynowa #7;gas-station;-51;-1759
+340;The Ballas Gang;ballas;-74;-1819
+341;Sklep całodobowy #20;grocery-store;-48;-1761
+342;Pokój wolnego celu;free-premises;-830;-1256
+343;Spawn;spawn;-824;-1222
+344;Stacja benzynowa #18;gas-station;-531;-1220
+345;undefined;job;-504;-947
+346;Sklep z bronią #4;gunshop;-662;-945
+347;Apartament #6;apartment;-264;-960
+348;Myjnia;car-washing;-697;-942
+349;Sklep odzieżowy #3;clothing-store;-820;-1081
+350;Wynajem samochodów;car-rent;-834;-1218
+351;Praca śmieciarza;job;-627;-1632
+352;Wynajem samochodów;car-rent;-693;-1404
+353;Wynajem łodzi;boat-rent;-767;-1472
+354;Stacja benzynowa #2;gas-station;-342;-1478
+355;Przystań łodziowa;boat-station;-739;-1400
+356;Stacja benzynowa #28;gas-station;-790;-1460
+357;Salon samochodowy;custom;-705;-1395
+358;The Families;famillies;-249;-1508
+359;Warsztat Los Santos Customs #3;lsc;-209;-1310
+360;Rzemiosło z materiałów medycznych;craft-s-1;-520;-2904
+361;Pokój wolnego celu;free-premises;-269;-2438
+362;Autoserwis #7;autoservice;-218;-1944
+363;Magazyn #8;warehouse;-253;-2591
+364;Praca kierowcy autobusu;job;-768;-2064
+365;Magazyn #5;warehouse;-659;-2369
+366;Maze Bank Arena;arena;-291;-1926
+367;Złomowisko;utilization;-470;-1718
+368;undefined;craft-s-2;-638;-1776
+369;Szkoła jazdy;driving-school;-911;-2038
+370;Warsztat Los Santos Customs #1;lsc;-1143;-1994
+371;Wynajem samochodów;car-rent;-1179;-1501
+372;Siłownia;gym;-1194;-1566
+373;Rynek;market;-1228;-1459
+374;undefined;pvz;-1024;-1422
+375;Salon tatuażu #3;tattoo;-1140;-1420
+376;Barbershop #7;barbershop;-1289;-1114
+377;Światowe zadania #1;quests;-1270;-1414
+378;Odholownik dla ciężarówek;truck-spawn;-845;-2687
+379;Stacja benzynowa #25;gas-station;-1316;-2658
+380;Strefa driftu;drift;-890;-2604
+381;Lotnisko;airport;-1029;-2487
+382;Salon samochodowy;custom;-895;-2401
+383;Magazyn #6;warehouse;-1295;-2377
+384;Złomowisko;utilization;-1176;-2308
+385;Magazyn #1;warehouse;-1162;-2164
+386;undefined;car-rent;-927;-2104
+387;Wynajem samochodów;car-rent;-1032;-2734
+388;Pokój wolnego celu;free-premises;-1912;-2992
+389;Lądowisko dla helikopterów;aircraft-spawn;-1621;-3152
+390;undefined;special-tuning;-1250;-3352
+391;Magazyn #3;warehouse;-1801;-2814
+392;Spawn;spawn;-1042;-2745
+393;Szkoła lotnicza;flying-school;-1152;-2721
+394;Craft z materiałów technicznych;craft-s-3;-1290;-3425
+395;Magazyn #2;warehouse;-863;-2718

@@ -1,0 +1,1255 @@
+(() => {
+"use strict";
+
+/* ---------- ikony ---------- */
+const ICONS = {
+  cross: '<path d="M12 5v14M5 12h14"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 13h18"/>',
+  wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+  bank: '<path d="M3 10l9-6 9 6M5 10v8M10 10v8M14 10v8M19 10v8M3 21h18"/>',
+  bag: '<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',
+  shirt: '<path d="M8 3l-5 4 3 4 2-1v11h8V10l2 1 3-4-5-4c0 2-1.5 3-4 3S8 5 8 3z"/>',
+  scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8L20 19M8.5 16L20 5"/>',
+  fuel: '<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 8l4 3v7a1.5 1.5 0 0 0 3 0V9l-3-3"/>',
+  plane: '<path d="M10 14l-7-3 1.5-1.5L11 11l5-6a2 2 0 0 1 3 3l-6 5 1.5 6.5L13 21l-3-7z"/>',
+  star: '<path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4l-5.5 2.9 1-6.2L3 9.7l6.2-.9z"/>',
+  pin: '<path d="M12 21s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  home: '<path d="M3 11l9-7 9 7M5 9.5V20h14V9.5"/>',
+  car: '<path d="M5 16l1.5-6h11L19 16M3 16h18v4H3zM7 20v1M17 20v1"/><circle cx="7.5" cy="18" r=".5"/>',
+  skull: '<path d="M12 3a8 8 0 0 0-5 14v3h10v-3a8 8 0 0 0-5-14z"/><circle cx="9" cy="11" r="1.5"/><circle cx="15" cy="11" r="1.5"/>',
+  money: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/>',
+  flag: '<path d="M5 21V4h11l-2 4 2 4H5"/>',
+  leaf: '<path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15zM5 19l7-7"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  me: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/>',
+  hammer: '<path d="M14 6l4 4M12 4l6 6-2 2-6-6zM11 9l-8 8 2 2 8-8"/>',
+};
+const ico = (n) => `<svg viewBox="0 0 24 24">${ICONS[n] || ICONS.pin}</svg>`;
+const CUSTOM_ICONS = ["pin", "home", "car", "money", "skull", "flag", "star", "briefcase"];
+const SWATCHES = ["#ffffff", "#f5b544", "#ff5a6a", "#ff7ac6", "#b07cff", "#4d8dff", "#2fd4d4", "#3ddc97", "#a4e05a"];
+
+/* ---------- układ współrzędnych GTA V ---------- */
+const CRS = L.extend({}, L.CRS.Simple, {
+  projection: L.Projection.LonLat,
+  scale: (z) => Math.pow(2, z),
+  zoom: (s) => Math.log(s) / Math.LN2,
+  distance: (a, b) => Math.hypot(b.lng - a.lng, b.lat - a.lat),
+  transformation: new L.Transformation(0.02072, 117.3, -0.0205, 172.8),
+  infinite: true,
+});
+const toLL = (x, y) => L.latLng(y, x);
+// flyTo dzieli przez rozmiar mapy — gdy okno jest zminimalizowane, przeskakujemy bez animacji
+function fly(latlng, zoom, opts) {
+  const s = map.getSize();
+  if (!s.x || !s.y || document.hidden) return map.setView(latlng, zoom, { animate: false });
+  try { map.flyTo(latlng, zoom, opts); } catch { map.setView(latlng, zoom); }
+}
+
+/* ---------- stan ---------- */
+const STORE_KEY = "majestic-mapa-v1";
+const cats = window.CATEGORIES;
+const catById = Object.fromEntries(cats.map((c) => [c.id, c]));
+let state = null;
+const leafletById = new Map();
+let selectedId = null;
+
+const uid = () => "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = (s) => document.querySelector(s);
+
+function builtinMarkers() {
+  return window.DEFAULT_MARKERS.map(([cat, name, x, y, note], i) => ({ id: "d" + i, cat, name, x, y, note: note || "", builtin: true }));
+}
+
+function defaultState() {
+  return {
+    style: "satellite",
+    hiddenCats: [],
+    markersVersion: window.MARKERS_VERSION,
+    markers: builtinMarkers(),
+  };
+}
+
+// zapis przez localStorage okna (WebView2 trzyma go na dysku w %APPDATA%\MajesticMapa)
+const api = () => null;
+
+async function loadState() {
+  let raw = null;
+  try {
+    if (api()) raw = await api().load();
+    else raw = localStorage.getItem(STORE_KEY);
+  } catch (e) { console.warn(e); }
+  if (raw) {
+    try {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.markers)) {
+        if (s.markersVersion !== window.MARKERS_VERSION) {
+          // nowa wersja wbudowanych znaczników: podmień je, zachowaj własne
+          const own = s.markers.filter((m) => !m.builtin).map((m) => (catById[m.cat] ? m : { ...m, cat: "moje" }));
+          s.markers = [...builtinMarkers(), ...own];
+          s.markersVersion = window.MARKERS_VERSION;
+          s.hiddenCats = (s.hiddenCats || []).filter((c) => catById[c]);
+        }
+        return Object.assign(defaultState(), s);
+      }
+    } catch (e) { console.warn("Uszkodzony zapis", e); }
+  }
+  return defaultState();
+}
+
+let saveTimer = 0;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const data = JSON.stringify(state);
+    try {
+      if (api()) await api().save(data);
+      else localStorage.setItem(STORE_KEY, data);
+    } catch (e) { toast("Nie udało się zapisać zmian"); console.error(e); }
+  }, 250);
+}
+
+/* ---------- mapa ---------- */
+const map = L.map("map", {
+  crs: CRS,
+  center: [600, 100],
+  zoom: 1,
+  minZoom: 1,
+  maxZoom: 7,
+  zoomControl: false,
+  attributionControl: false,
+  zoomSnap: 0.25,
+  zoomDelta: 0.5,
+  wheelPxPerZoomLevel: 90,
+  maxBounds: [[-5600, -5900], [8600, 6900]],
+  maxBoundsViscosity: 0.8,
+  preferCanvas: false,
+});
+L.control.zoom({ position: "bottomright", zoomInTitle: "Przybliż", zoomOutTitle: "Oddal" }).addTo(map);
+
+let tiles = null;
+function setStyle(style, animate = true) {
+  state.style = style;
+  const next = L.tileLayer(`tiles/${style}/{z}/{x}/{y}.webp`, {
+    minZoom: 0, maxZoom: 7, maxNativeZoom: 5, noWrap: true, tileSize: 256,
+    bounds: [[-4058, -5661], [8429, 6694]], keepBuffer: 4,
+  });
+  next.addTo(map);
+  const old = tiles;
+  tiles = next;
+  if (old) {
+    const pane = old.getContainer();
+    if (pane && animate) {
+      pane.style.transition = "opacity .5s cubic-bezier(.16,1,.3,1)";
+      next.once("load", () => { pane.style.opacity = "0"; setTimeout(() => map.removeLayer(old), 520); });
+      setTimeout(() => map.hasLayer(old) && map.removeLayer(old), 2500);
+    } else map.removeLayer(old);
+  }
+  $("#map").className = $("#map").className.replace(/\bstyle-\w+/g, "") + " style-" + style;
+  document.querySelectorAll("#styles button").forEach((b) => b.classList.toggle("on", b.dataset.style === style));
+  moveGlider();
+}
+function moveGlider() {
+  const on = $("#styles button.on");
+  const g = $(".seg-glider");
+  if (!on) return;
+  g.style.width = on.offsetWidth + "px";
+  g.style.transform = `translateX(${on.offsetLeft}px)`;
+}
+
+/* ---------- znaczniki ---------- */
+const markerColor = (m) => m.color || catById[m.cat]?.color || "#fff";
+const markerIcon = (m) => m.icon || catById[m.cat]?.icon || "pin";
+
+function makeIcon(m, delay = 0, extra = "") {
+  return L.divIcon({
+    className: "",
+    iconSize: [34, 42],
+    iconAnchor: [17, 38],
+    tooltipAnchor: [0, -36],
+    html: `<div class="mk ${m.builtin ? "" : "custom"} ${m.id === selectedId ? "sel" : ""} ${extra}" style="--c:${markerColor(m)}">
+      <div class="mk-in" style="--d:${delay}ms"><i class="mk-shadow"></i><div class="mk-pin"></div><div class="mk-ico">${ico(markerIcon(m))}</div></div></div>`,
+  });
+}
+
+function addLeaflet(m, delay = 0) {
+  const lm = L.marker(toLL(m.x, m.y), { icon: makeIcon(m, delay), riseOnHover: true, keyboard: true, title: m.name });
+  lm.bindTooltip(esc(m.name), { direction: "top", className: "mk-tip", offset: [0, 0] });
+  lm.on("click", () => select(m.id, false));
+  lm.on("dragend", () => {
+    const p = lm.getLatLng();
+    m.x = Math.round(p.lng); m.y = Math.round(p.lat);
+    save();
+    if (selectedId === m.id) renderCard(m);
+    toast("Przeniesiono: " + m.name);
+  });
+  leafletById.set(m.id, lm);
+  if (!state.hiddenCats.includes(m.cat)) lm.addTo(map);
+  return lm;
+}
+
+function refreshIcon(m) {
+  const lm = leafletById.get(m.id);
+  if (!lm) return;
+  lm.setIcon(makeIcon(m, 0, "static"));
+  lm.setTooltipContent(esc(m.name));
+  lm.options.title = m.name;
+  // brak animacji zrzutu przy odświeżeniu
+  const el = lm.getElement()?.querySelector(".mk-in");
+  if (el) el.style.animation = "none";
+}
+
+function removeLeaflet(id, animate = true) {
+  const lm = leafletById.get(id);
+  if (!lm) return;
+  leafletById.delete(id);
+  const el = lm.getElement()?.querySelector(".mk");
+  if (animate && el && map.hasLayer(lm)) {
+    el.classList.add("out");
+    setTimeout(() => map.removeLayer(lm), 360);
+  } else map.removeLayer(lm);
+}
+
+function dropAll() {
+  // znaczniki spadają falą od środka ekranu
+  const c = map.getCenter();
+  const list = state.markers.map((m) => ({ m, d: Math.hypot(m.x - c.lng, m.y - c.lat) })).sort((a, b) => a.d - b.d);
+  list.forEach(({ m }, i) => addLeaflet(m, 120 + Math.min(i * 9, 1400)));
+}
+
+function setCatVisible(catId, visible) {
+  state.hiddenCats = state.hiddenCats.filter((c) => c !== catId);
+  if (!visible) state.hiddenCats.push(catId);
+  let i = 0;
+  for (const m of state.markers) {
+    if (m.cat !== catId) continue;
+    const lm = leafletById.get(m.id);
+    if (!lm) continue;
+    if (visible && !map.hasLayer(lm)) {
+      lm.setIcon(makeIcon(m, Math.min(i++ * 15, 500)));
+      lm.addTo(map);
+    } else if (!visible && map.hasLayer(lm)) {
+      const el = lm.getElement()?.querySelector(".mk");
+      if (el) { el.classList.add("out"); setTimeout(() => map.removeLayer(lm), 360); } else map.removeLayer(lm);
+      if (selectedId === m.id) closeCard();
+    }
+  }
+  save();
+  renderCats();
+}
+
+/* ---------- panel kategorii ---------- */
+const openCats = new Set();
+
+function renderCats() {
+  const ul = $("#cats");
+  const counts = {};
+  state.markers.forEach((m) => (counts[m.cat] = (counts[m.cat] || 0) + 1));
+  const firstRender = !ul.children.length;
+  ul.innerHTML = cats.map((c, i) => {
+    const on = !state.hiddenCats.includes(c.id);
+    const items = state.markers.filter((m) => m.cat === c.id).sort((a, b) => a.name.localeCompare(b.name, "pl"));
+    return `<li class="cat ${on ? "on" : ""} ${openCats.has(c.id) ? "open" : ""}" data-cat="${c.id}" style="--c:${c.color};--i:${i};${firstRender ? "" : "animation:none"}">
+      <div class="cat-row">
+        <button class="cat-open" data-act="open" aria-expanded="${openCats.has(c.id)}" title="Pokaż listę">
+          <span class="cat-dot">${ico(c.icon)}</span>
+          <span class="cat-name">${esc(c.name)}</span>
+          <span class="cat-count">${counts[c.id] || 0}</span>
+          <svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button class="switch" data-act="toggle" role="switch" aria-checked="${on}" title="${on ? "Ukryj" : "Pokaż"} na mapie"></button>
+      </div>
+      <div class="cat-items"><ul>${items.length ? items.map((m) => placeRow(m)).join("") : `<li class="empty">${c.custom ? "Kliknij prawym na mapie, aby dodać swój pierwszy znacznik." : "Brak znaczników."}</li>`}</ul></div>
+    </li>`;
+  }).join("");
+  const favs = state.markers.filter((m) => m.fav);
+  $("#favs-wrap").hidden = !favs.length;
+  $("#favs").innerHTML = favs.map((m, i) => placeRow(m, i)).join("");
+  const hiddenAll = state.hiddenCats.length === cats.length;
+  $("#toggle-all").textContent = hiddenAll ? "Pokaż wszystkie" : "Ukryj wszystkie";
+  $("#stat").textContent = `${state.markers.length} znaczników · ${state.markers.filter((m) => !m.builtin).length} Twoich`;
+}
+
+function placeRow(m, i = 0) {
+  return `<li><button class="place" data-id="${m.id}" style="--c:${markerColor(m)};--i:${i}"><i></i><span>${esc(m.name)}</span>${m.builtin ? "" : "<small>Twój</small>"}</button></li>`;
+}
+
+$("#cats").addEventListener("click", (e) => {
+  const place = e.target.closest(".place");
+  if (place) return select(place.dataset.id, true);
+  const li = e.target.closest(".cat");
+  if (!li) return;
+  const id = li.dataset.cat;
+  if (e.target.closest("[data-act=toggle]")) return setCatVisible(id, state.hiddenCats.includes(id));
+  if (e.target.closest(".cat-row")) {
+    openCats.has(id) ? openCats.delete(id) : openCats.add(id);
+    li.classList.toggle("open");
+  }
+});
+
+$("#favs").addEventListener("click", (e) => { const p = e.target.closest(".place"); if (p) select(p.dataset.id, true); });
+$("#toggle-all").addEventListener("click", () => {
+  const show = state.hiddenCats.length === cats.length;
+  cats.forEach((c) => setCatVisible(c.id, show));
+});
+
+/* ---------- wyszukiwarka ---------- */
+const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ł/g, "l");
+$("#q").addEventListener("input", (e) => {
+  const q = norm(e.target.value.trim());
+  $("#results").hidden = !q;
+  $("#cats-wrap").hidden = !!q;
+  if (!q) return;
+  if (q.startsWith("mjm:")) { $("#result-list").innerHTML = `<li class="empty">Naciśnij Enter, żeby dodać znacznik z kodu.</li>`; return; }
+  const hits = state.markers.filter((m) => norm(m.name + " " + (m.note || "") + " " + (catById[m.cat]?.name || "")).includes(q)).slice(0, 60);
+  $("#result-list").innerHTML = hits.length ? hits.map((m, i) => placeRow(m, i)).join("") : `<li class="empty">Nic nie znaleziono dla „${esc(e.target.value)}”.</li>`;
+});
+$("#q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.value.trim().startsWith("MJM:")) { importCode(e.target.value.trim()); e.target.value = ""; e.target.dispatchEvent(new Event("input")); return; }
+  if (e.key === "Enter") { const first = $("#result-list .place"); if (first) select(first.dataset.id, true); }
+  if (e.key === "Escape") { e.target.value = ""; e.target.dispatchEvent(new Event("input")); e.target.blur(); }
+});
+$("#result-list").addEventListener("click", (e) => { const p = e.target.closest(".place"); if (p) select(p.dataset.id, true); });
+
+/* ---------- wybór i karta ---------- */
+function select(id, flyTo) {
+  const m = state.markers.find((x) => x.id === id);
+  if (!m) return;
+  if (state.hiddenCats.includes(m.cat)) setCatVisible(m.cat, true);
+  const prev = selectedId;
+  selectedId = id;
+  if (prev && prev !== id) { const pm = state.markers.find((x) => x.id === prev); if (pm) refreshIcon(pm); }
+  refreshIcon(m);
+  if (flyTo) fly(toLL(m.x, m.y), Math.max(map.getZoom(), 4.5), { duration: 1.1, easeLinearity: 0.15 });
+  renderCard(m);
+}
+
+function showCard(html) {
+  const card = $("#card");
+  card.classList.remove("leaving");
+  card.hidden = false;
+  card.style.animation = "none"; void card.offsetWidth; card.style.animation = "";
+  $("#card-body").innerHTML = html;
+}
+
+function closeCard() {
+  const card = $("#card");
+  if (card.hidden) return;
+  stopMove();
+  card.classList.add("leaving");
+  setTimeout(() => { card.hidden = true; card.classList.remove("leaving"); }, 300);
+  const prev = selectedId;
+  selectedId = null;
+  const pm = state.markers.find((x) => x.id === prev);
+  if (pm) refreshIcon(pm);
+  removeGhost();
+}
+$("#card").addEventListener("click", (e) => { if (e.target.closest("[data-close]")) closeCard(); });
+
+function renderCard(m) {
+  const c = catById[m.cat];
+  showCard(`<div class="card-hero" style="--c:${markerColor(m)}">
+      <span class="card-badge">${ico(markerIcon(m))}${esc(c?.name || "Znacznik")}</span>
+      <button class="fav-btn ${m.fav ? "on" : ""}" id="fav" title="Ulubione">${ico("star")}</button>
+      <h3 class="card-title">${esc(m.name)}</h3>
+      <div class="card-coords"><span>X <b>${m.x}</b></span><span>Y <b>${m.y}</b></span><button class="copy-btn" id="copy">Kopiuj</button><button class="copy-btn" id="share" title="Kod do wysłania znajomym">Kod</button></div>
+      ${contactsHtml(m)}
+    </div>
+    <div class="card-sec"><p class="card-note ${m.note ? "" : "muted"}">${m.note ? esc(m.note) : m.builtin ? "Punkt z oficjalnej mapy Majestic Wiki." : "Brak notatki."}</p></div>
+    ${journalHtml(m)}
+    <div class="card-sec shots-sec">
+      <div class="shots-head"><span>Zrzuty ekranu</span><small>${(m.shots || []).length || ""}</small></div>
+      <div class="shots" id="shots">${shotsHtml(m)}</div>
+    </div>
+    <div class="card-actions">
+      <button class="btn ghost" id="edit">Edytuj</button>
+      <button class="btn ghost" id="move">Przesuń</button>
+      <button class="btn danger wide" id="del">${m.builtin ? "Usuń z mapy" : "Usuń znacznik"}</button>
+    </div>`);
+  $("#copy").onclick = () => copy(`${m.x}, ${m.y}`);
+  $("#fav").onclick = () => { m.fav = !m.fav; save(); renderCats(); $("#fav").classList.toggle("on", m.fav); toast(m.fav ? "Dodano do ulubionych" : "Usunięto z ulubionych"); };
+  $("#share").onclick = () => copy(shareCode(m), "Skopiowano kod znacznika. Kolega wkleja go w wyszukiwarkę (Ctrl+K)");
+  document.querySelectorAll(".linked [data-contact]").forEach((b) => (b.onclick = () => Host.nav("kontakty", { select: b.dataset.contact })));
+  $("#edit").onclick = () => renderForm(m);
+  $("#move").onclick = (e) => toggleMove(m, e.currentTarget);
+  $("#del").onclick = (e) => confirmDelete(m, e.currentTarget);
+  bindShots(m);
+  bindJournal(m);
+}
+
+/* ---------- zrzuty ekranu przy znacznikach ---------- */
+let shotsBase = "";
+const shotUrl = (n) => shotsBase + n;
+const pendingShots = [];
+const X_ICON = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+function shotsHtml(m) {
+  const list = m.shots || [];
+  return list.map((n, i) => `<button class="shot" data-i="${i}" style="--i:${i}" title="Powiększ"><img src="${shotUrl(n)}" alt="" loading="lazy"></button>`).join("") +
+    (Host.available ? `<div class="shot-add">
+      <button data-add="paste" title="Wklej ze schowka (Ctrl+V)">${ico("camera")}<span>Wklej</span></button>
+      <button data-add="game" title="Wybierz z ostatnich zrzutów z gry (G)">Z gry</button>
+      <button data-add="file" title="Wybierz plik z dysku">Z pliku</button>
+    </div>` : `<p class="card-note muted">Zrzuty działają w aplikacji Majestic Companion.</p>`);
+}
+function refreshShots(m) {
+  const box = $("#shots"); if (!box) return;
+  box.innerHTML = shotsHtml(m);
+  const head = document.querySelector(".shots-head small"); if (head) head.textContent = (m.shots || []).length || "";
+  bindShots(m);
+}
+function addShots(m, names) {
+  names = (names || []).filter(Boolean);
+  if (!names.length) return;
+  (m.shots ||= []).push(...names);
+  save(); refreshShots(m);
+  toast(names.length > 1 ? `Dodano zrzuty: ${names.length}` : "Dodano zrzut ekranu");
+}
+function bindShots(m) {
+  const box = $("#shots"); if (!box) return;
+  box.onclick = async (e) => {
+    const sh = e.target.closest(".shot");
+    if (sh) return openLightbox(m, +sh.dataset.i);
+    const a = e.target.closest("[data-add]"); if (!a) return;
+    try {
+      if (a.dataset.add === "paste") addShots(m, [await pasteImage()]);
+      if (a.dataset.add === "file") addShots(m, await Host.call("pick_image"));
+      if (a.dataset.add === "game") openInbox(m);
+    } catch (err) { toast("Nie udało się dodać zrzutu"); console.error(err); }
+  };
+}
+const readFile = (f) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); });
+async function pasteImage(clipboardData) {
+  const item = clipboardData && [...clipboardData.items].find((i) => i.type.startsWith("image/"));
+  if (item) return Host.call("import_image_data", await readFile(item.getAsFile()));
+  const name = await Host.call("paste_clipboard_image");
+  if (!name) toast("W schowku nie ma obrazka. Zrób zrzut (np. Win+Shift+S) i spróbuj jeszcze raz");
+  return name;
+}
+document.addEventListener("paste", async (e) => {
+  if (/INPUT|TEXTAREA/.test(document.activeElement?.tagName) || !Host.available) return;
+  const m = selectedId && state.markers.find((x) => x.id === selectedId);
+  if (!m || $("#card").hidden || $("#mform")) return;
+  e.preventDefault();
+  addShots(m, [await pasteImage(e.clipboardData)]);
+});
+// przeciągnij obrazek z pulpitu na kartę znacznika
+$("#card").addEventListener("dragover", (e) => { if ($("#shots")) { e.preventDefault(); $("#card").classList.add("drop"); } });
+$("#card").addEventListener("dragleave", () => $("#card").classList.remove("drop"));
+$("#card").addEventListener("drop", async (e) => {
+  $("#card").classList.remove("drop");
+  const m = selectedId && state.markers.find((x) => x.id === selectedId);
+  if (!m || !Host.available) return;
+  e.preventDefault();
+  const names = [];
+  for (const f of [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/"))) {
+    names.push(await Host.call("import_image_data", await readFile(f)).catch(() => null));
+  }
+  addShots(m, names);
+});
+
+/* podgląd zrzutu na pełnym ekranie */
+let lb = null;
+function openLightbox(m, i) {
+  lb = { m, i };
+  const el = document.createElement("div");
+  el.id = "lightbox";
+  el.innerHTML = `<img alt=""><div class="lb-bar"><span class="lb-count"></span>
+    <button data-lb="prev" title="Poprzedni (←)"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <button data-lb="next" title="Następny (→)"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button data-lb="del" class="lb-del" title="Usuń zrzut">Usuń</button>
+    <button data-lb="close" title="Zamknij (Esc)">${X_ICON}</button></div>`;
+  document.body.appendChild(el);
+  el.onclick = (e) => {
+    const b = e.target.closest("[data-lb]");
+    if (!b) { if (e.target === el) closeLightbox(); return; }
+    ({ prev: () => stepLb(-1), next: () => stepLb(1), close: closeLightbox, del: delShot })[b.dataset.lb]();
+  };
+  drawLb();
+}
+function drawLb() {
+  const el = $("#lightbox"); if (!el || !lb) return;
+  const list = lb.m.shots || [];
+  if (!list.length) return closeLightbox();
+  lb.i = (lb.i + list.length) % list.length;
+  const img = el.querySelector("img");
+  img.classList.remove("in"); void img.offsetWidth;
+  img.src = shotUrl(list[lb.i]); img.classList.add("in");
+  el.querySelector(".lb-count").textContent = `${lb.i + 1} / ${list.length} · ${lb.m.name}`;
+}
+function stepLb(d) { if (lb) { lb.i += d; drawLb(); } }
+function closeLightbox() {
+  const el = $("#lightbox"); if (!el) return;
+  el.classList.add("out"); setTimeout(() => el.remove(), 300); lb = null;
+}
+function delShot() {
+  const b = $("#lightbox [data-lb=del]");
+  if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = "Na pewno?"; return; }
+  const [name] = lb.m.shots.splice(lb.i, 1);
+  Host.call("delete_image", name).catch(() => {});
+  save(); refreshShots(lb.m); toast("Usunięto zrzut");
+  b.textContent = "Usuń"; delete b.dataset.armed;
+  drawLb();
+}
+
+/* ostatnie zrzuty z gry (NVIDIA, Xbox Game Bar, Medal, Wycinanie) */
+let inboxTarget = null;
+async function openInbox(target) {
+  if (!Host.available) return toast("Zrzuty z gry działają w aplikacji Majestic Companion");
+  inboxTarget = target || null;
+  const list = await Host.call("recent_screenshots", 0, 30).catch(() => []);
+  $("#inbox")?.remove();
+  const el = document.createElement("aside");
+  el.id = "inbox";
+  el.innerHTML = `<div class="ib-head"><div><h3>Zrzuty z gry</h3><p>${inboxTarget ? "Kliknij zrzut, żeby dodać go do: " + esc(inboxTarget.name) : "Kliknij zrzut, a potem miejsce na mapie"}</p></div>
+    <button class="icon-btn" data-ib="close" title="Zamknij (Esc)">${X_ICON}</button></div>
+    <div class="ib-grid">${list.length ? list.map((x, i) => `<button class="ib-shot" data-path="${esc(x.path)}" style="--i:${i}"><img src="${x.url}" loading="lazy" alt=""><span>${new Date(x.time).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></button>`).join("")
+      : `<p class="ib-empty">Brak zrzutów z ostatnich 3 dni w folderach NVIDIA, Xbox Game Bar, Medal i Wycinanie. Zrób zrzut w grze albo wklej obrazek przez Ctrl+V na karcie znacznika.</p>`}</div>`;
+  document.body.appendChild(el);
+  el.onclick = async (e) => {
+    if (e.target.closest("[data-ib=close]")) return closeInbox();
+    const b = e.target.closest(".ib-shot"); if (!b) return;
+    b.classList.add("busy");
+    const name = await Host.call("import_image_file", b.dataset.path).catch(() => null);
+    if (!name) { toast("Nie udało się wczytać zrzutu"); b.classList.remove("busy"); return; }
+    closeInbox();
+    if (inboxTarget) addShots(inboxTarget, [name]);
+    else { pendingShots.push(name); startPlacing(); toast("Kliknij na mapie, gdzie zrobiłeś ten zrzut"); }
+  };
+}
+function closeInbox() { const el = $("#inbox"); if (el) { el.classList.add("out"); setTimeout(() => el.remove(), 300); } }
+
+/* ---------- tu jestem + najbliższe miejsca ---------- */
+let meMarker = null, placingMe = false;
+function setMe(latlng) {
+  state.me = { x: Math.round(latlng.lng), y: Math.round(latlng.lat), at: Date.now() };
+  save();
+  drawMe(true);
+  renderMeCard();
+}
+function drawMe(animate) {
+  if (!state.me) return;
+  const ll = toLL(state.me.x, state.me.y);
+  const icon = L.divIcon({ className: "", iconSize: [48, 48], iconAnchor: [24, 24], html: `<div class="me ${animate ? "drop" : ""}"><i></i><i></i><b>TY</b></div>` });
+  if (meMarker) meMarker.setLatLng(ll).setIcon(icon);
+  else meMarker = L.marker(ll, { icon, zIndexOffset: 2000, keyboard: false }).addTo(map).on("click", renderMeCard);
+}
+function nearest(n) {
+  const me = state.me; if (!me) return [];
+  return state.markers.filter((m) => !state.hiddenCats.includes(m.cat))
+    .map((m) => ({ m, d: Math.hypot(m.x - me.x, m.y - me.y) })).sort((a, b) => a.d - b.d).slice(0, n);
+}
+const fmtDist = (d) => d >= 1000 ? (d / 1000).toFixed(1).replace(".", ",") + " km" : Math.round(d) + " m";
+function renderMeCard() {
+  if (!state.me) return;
+  const prev = selectedId; selectedId = null;
+  const pm = prev && state.markers.find((x) => x.id === prev); if (pm) refreshIcon(pm);
+  showCard(`<div class="card-hero" style="--c:#f5b544">
+      <span class="card-badge">${ico("me")}Twoja pozycja</span>
+      <h3 class="card-title">Tu jestem</h3>
+      <div class="card-coords"><span>X <b>${state.me.x}</b></span><span>Y <b>${state.me.y}</b></span></div>
+    </div>
+    <div class="card-sec"><div class="shots-head"><span>Najbliżej Ciebie</span></div>
+      <ul class="near place-list">${nearest(8).map(({ m, d }, i) => `<li><button class="place" data-id="${m.id}" style="--c:${markerColor(m)};--i:${i}"><i></i><span>${esc(m.name)}</span><small>${fmtDist(d)}</small></button></li>`).join("")}</ul></div>
+    <div class="card-actions"><button class="btn ghost" id="me-move">Zmień pozycję</button><button class="btn ghost" id="me-del">Ukryj</button></div>`);
+  document.querySelector(".near").onclick = (e) => { const p = e.target.closest(".place"); if (p) select(p.dataset.id, true); };
+  $("#me-move").onclick = startMe;
+  $("#me-del").onclick = () => { state.me = null; save(); if (meMarker) { map.removeLayer(meMarker); meMarker = null; } closeCard(); };
+}
+function startMe() {
+  stopPlacing();
+  closeCard();
+  placingMe = true;
+  $("#placing-hint .ph-text").textContent = "Kliknij na mapie, gdzie teraz jesteś w grze";
+  $("#placing-hint").hidden = false;
+  map.getContainer().classList.add("placing");
+}
+function stopMe() {
+  placingMe = false;
+  $("#placing-hint .ph-text").textContent = "Kliknij na mapie, gdzie postawić znacznik";
+}
+
+
+let moving = null;
+function toggleMove(m, btn) {
+  if (moving) return stopMove();
+  const lm = leafletById.get(m.id);
+  if (!lm) return;
+  moving = lm;
+  lm.dragging.enable();
+  btn.textContent = "Gotowe";
+  btn.classList.replace("ghost", "primary");
+  toast("Przeciągnij znacznik w nowe miejsce");
+}
+function stopMove() {
+  if (!moving) return;
+  moving.dragging.disable();
+  moving = null;
+  const b = $("#move");
+  if (b) { b.textContent = "Przesuń"; b.classList.replace("primary", "ghost"); }
+}
+
+function confirmDelete(m, btn) {
+  if (btn.dataset.armed) {
+    state.markers = state.markers.filter((x) => x.id !== m.id);
+    removeLeaflet(m.id);
+    selectedId = null;
+    closeCard();
+    renderCats();
+    save();
+    toast("Usunięto: " + m.name);
+    return;
+  }
+  btn.dataset.armed = "1";
+  btn.textContent = "Na pewno? Kliknij ponownie";
+  setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = m.builtin ? "Usuń z mapy" : "Usuń znacznik"; } }, 3000);
+}
+
+/* ---------- dodawanie / edycja ---------- */
+let placing = false;
+let ghost = null;
+
+function startPlacing() {
+  placing = true;
+  closeCard();
+  $("#placing-hint").hidden = false;
+  map.getContainer().classList.add("placing");
+}
+function stopPlacing() {
+  placing = false;
+  if (placingMe) stopMe();
+  $("#placing-hint").hidden = true;
+  map.getContainer().classList.remove("placing");
+}
+function removeGhost() { if (ghost) { map.removeLayer(ghost); ghost = null; } }
+
+function newAt(latlng) {
+  stopPlacing();
+  const m = { id: null, cat: "moje", name: "", x: Math.round(latlng.lng), y: Math.round(latlng.lat), note: "", icon: "pin", color: "#ffffff" };
+  removeGhost();
+  ghost = L.marker(latlng, { icon: makeIcon(m), interactive: false }).addTo(map);
+  renderForm(m);
+}
+
+function renderForm(m) {
+  stopMove();
+  const isNew = !m.id;
+  const d = { ...m, icon: markerIcon(m), color: markerColor(m) };
+  showCard(`<form class="form" id="mform" autocomplete="off">
+      <h3>${isNew ? "Nowy znacznik" : "Edytuj znacznik"}</h3>
+      <label class="field"><span>Nazwa</span><input name="name" maxlength="60" placeholder="np. Kryjówka, dom kumpla…" value="${esc(d.name)}"></label>
+      <div class="field"><span>Kategoria</span><div class="chips" id="fcats">${cats.map((c) => `<button type="button" class="chip ${c.id === d.cat ? "on" : ""}" data-cat="${c.id}" style="--c:${c.color}">${ico(c.icon)}${esc(c.name)}</button>`).join("")}</div></div>
+      <div class="field"><span>Ikona</span><div class="chips" id="ficons">${CUSTOM_ICONS.map((n) => `<button type="button" class="chip ${n === d.icon ? "on" : ""}" data-icon="${n}" style="--c:${d.color}" title="${n}">${ico(n)}</button>`).join("")}</div></div>
+      <div class="field"><span>Kolor</span><div class="swatches" id="fsw">${SWATCHES.map((s) => `<button type="button" class="sw ${s === d.color ? "on" : ""}" data-c="${s}" style="--c:${s}" aria-label="Kolor ${s}"></button>`).join("")}</div></div>
+      <label class="field"><span>Notatka</span><textarea name="note" maxlength="600" placeholder="Kody, godziny, z kim się spotkać…">${esc(d.note)}</textarea></label>
+      <div class="card-coords" style="margin:0"><span>X <b>${d.x}</b></span><span>Y <b>${d.y}</b></span></div>
+      <div class="form-actions">
+        <button type="button" class="btn ghost" id="fcancel">Anuluj</button>
+        <button type="submit" class="btn primary">${isNew ? "Postaw znacznik" : "Zapisz zmiany"}</button>
+      </div>
+    </form>`);
+  const form = $("#mform");
+  const preview = () => { if (ghost) ghost.setIcon(makeIcon({ ...d, builtin: false }, 0, "static")); };
+  form.querySelector("#fcats").onclick = (e) => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    d.cat = b.dataset.cat;
+    if (catById[d.cat] && !catById[d.cat].custom) { d.color = catById[d.cat].color; d.icon = catById[d.cat].icon; syncPickers(); }
+    form.querySelectorAll("#fcats .chip").forEach((x) => x.classList.toggle("on", x === b));
+    preview();
+  };
+  form.querySelector("#ficons").onclick = (e) => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    d.icon = b.dataset.icon; syncPickers(); preview();
+  };
+  form.querySelector("#fsw").onclick = (e) => {
+    const b = e.target.closest(".sw"); if (!b) return;
+    d.color = b.dataset.c; syncPickers(); preview();
+  };
+  function syncPickers() {
+    form.querySelectorAll("#ficons .chip").forEach((x) => { x.classList.toggle("on", x.dataset.icon === d.icon); x.style.setProperty("--c", d.color); });
+    form.querySelectorAll("#fsw .sw").forEach((x) => x.classList.toggle("on", x.dataset.c === d.color));
+  }
+  form.querySelector("#fcancel").onclick = () => { if (isNew) closeCard(); else renderCard(m); };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const name = form.name.value.trim();
+    if (!name) {
+      const f = form.name.closest(".field");
+      f.classList.remove("err"); void f.offsetWidth; f.classList.add("err");
+      form.name.focus();
+      return;
+    }
+    const cat = catById[d.cat];
+    const useCatLook = cat && !cat.custom && d.color === cat.color && d.icon === cat.icon;
+    const data = { name, note: form.note.value.trim(), cat: d.cat, color: useCatLook ? undefined : d.color, icon: useCatLook ? undefined : d.icon };
+    if (isNew) {
+      const nm = { id: uid(), x: d.x, y: d.y, builtin: false, ...data, shots: pendingShots.splice(0) };
+      state.markers.push(nm);
+      removeGhost();
+      addLeaflet(nm, 0);
+      if (state.hiddenCats.includes(nm.cat)) setCatVisible(nm.cat, true);
+      openCats.add(nm.cat);
+      select(nm.id, false);
+      toast("Dodano: " + name);
+    } else {
+      const catChanged = m.cat !== data.cat;
+      Object.assign(m, data);
+      if (catChanged) { removeLeaflet(m.id, false); addLeaflet(m, 0); }
+      refreshIcon(m);
+      renderCard(m);
+      toast("Zapisano zmiany");
+    }
+    renderCats();
+    save();
+  };
+  setTimeout(() => form.name.focus(), 80);
+}
+
+map.on("contextmenu", (e) => { if (drawing) return finishDraw(); newAt(e.latlng); });
+map.on("click", (e) => {
+  if (drawing) return;
+  if (placingMe) { stopMe(); $("#placing-hint").hidden = true; map.getContainer().classList.remove("placing"); return setMe(e.latlng); }
+  if (placing) newAt(e.latlng);
+});
+$("#add-btn").addEventListener("click", () => (placing ? stopPlacing() : startPlacing()));
+
+/* ---------- HUD ---------- */
+map.on("mousemove", (e) => {
+  $("#cx").textContent = Math.round(e.latlng.lng);
+  $("#cy").textContent = Math.round(e.latlng.lat);
+});
+
+/* ---------- eksport / import ---------- */
+$("#export-btn").addEventListener("click", async () => {
+  const data = JSON.stringify({ app: "majestic-mapa", version: 1, markers: state.markers.filter((m) => !m.builtin) }, null, 2);
+  if (api()) {
+    const path = await api().export_file(data);
+    if (path) toast("Zapisano plik: " + path.split(/[\\/]/).pop());
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+  a.download = "majestic-znaczniki.json";
+  a.click();
+  toast("Wyeksportowano Twoje znaczniki");
+});
+$("#import-btn").addEventListener("click", async () => {
+  if (api()) { const txt = await api().import_file(); if (txt) importText(txt); return; }
+  $("#import-file").click();
+});
+$("#import-file").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; if (f) importText(await f.text());
+  e.target.value = "";
+});
+function importText(txt) {
+  let list;
+  try { list = JSON.parse(txt).markers; } catch { list = null; }
+  if (!Array.isArray(list)) return toast("To nie jest plik ze znacznikami Majestic Mapa");
+  let added = 0;
+  for (const raw of list) {
+    if (typeof raw?.x !== "number" || typeof raw?.y !== "number" || !raw.name) continue;
+    if (state.markers.some((m) => m.name === raw.name && Math.abs(m.x - raw.x) < 2 && Math.abs(m.y - raw.y) < 2)) continue;
+    const m = { id: uid(), cat: catById[raw.cat] ? raw.cat : "moje", name: String(raw.name).slice(0, 60), x: Math.round(raw.x), y: Math.round(raw.y), note: String(raw.note || "").slice(0, 600), color: raw.color, icon: raw.icon, builtin: false };
+    state.markers.push(m);
+    addLeaflet(m, added * 40);
+    added++;
+  }
+  renderCats();
+  save();
+  toast(added ? `Zaimportowano ${added} znaczników` : "Wszystkie znaczniki z pliku już są na mapie");
+}
+
+/* ---------- drobiazgi ---------- */
+function toast(text) {
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.innerHTML = `<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>${esc(text)}`;
+  $("#toasts").appendChild(t);
+  while ($("#toasts").children.length > 3) $("#toasts").firstChild.remove();
+  setTimeout(() => { t.classList.add("bye"); setTimeout(() => t.remove(), 360); }, 2600);
+}
+async function copy(text, msg) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); }
+  toast(msg || "Skopiowano współrzędne " + text);
+}
+
+function setCollapsed(v) {
+  document.body.classList.toggle("collapsed", v);
+  setTimeout(moveGlider, 0);
+}
+$("#collapse").addEventListener("click", () => setCollapsed(true));
+$("#expand").addEventListener("click", () => setCollapsed(false));
+$("#styles").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-style]");
+  if (b && b.dataset.style !== state.style) { setStyle(b.dataset.style); save(); }
+});
+window.addEventListener("resize", moveGlider);
+document.fonts?.ready.then(moveGlider);
+
+document.addEventListener("keydown", (e) => {
+  const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCollapsed(false); $("#q").focus(); $("#q").select(); return; }
+  if (e.key === "Escape") {
+    if ($("#lightbox")) return closeLightbox();
+    if ($("#inbox")) return closeInbox();
+    if (placing) { pendingShots.splice(0); return stopPlacing(); }
+    if (!$("#card").hidden) return closeCard();
+  }
+  if (typing) return;
+  if (e.key === "Tab") { e.preventDefault(); setCollapsed(!document.body.classList.contains("collapsed")); }
+  if ($("#lightbox") && (e.key === "ArrowLeft" || e.key === "ArrowRight")) return stepLb(e.key === "ArrowLeft" ? -1 : 1);
+  if (e.key.toLowerCase() === "n") startPlacing();
+  if (e.key.toLowerCase() === "h") startMe();
+  if (e.key.toLowerCase() === "r") startDraw("route");
+  if (e.key.toLowerCase() === "z") startDraw("zone");
+  if (e.key.toLowerCase() === "g" && Host.available) openInbox(null);
+  if (e.key === "1") setStyle("satellite"), save();
+  if (e.key === "2") setStyle("atlas"), save();
+  if (e.key === "3") setStyle("road"), save();
+});
+
+/* ---------- start ---------- */
+async function boot() {
+  state = await loadState();
+  setStyle(state.style, false);
+  renderCats();
+  loadWiki();
+  renderDrawings();
+  $(".intro-bar i").style.transform = "scaleX(1)";
+  const go = () => {
+    document.documentElement.style.setProperty("--in-delay", ".25s");
+    $("#intro").classList.add("out");
+    fly([-200, 0], 3, { duration: 2.2, easeLinearity: 0.12 });
+    setTimeout(dropAll, 500);
+  };
+  if (Host.available) {
+    Host.call("shots_base").then((b) => { shotsBase = b; }).catch(() => {});
+    watchGameShots();
+  }
+  drawMe(false);
+  const minIntro = new Promise((r) => setTimeout(r, Host.embedded ? 300 : 1600));
+  const loaded = new Promise((r) => { tiles.once("load", r); setTimeout(r, 4000); });
+  Promise.all([minIntro, loaded]).then(go);
+}
+// gdy grasz, co 20 s sprawdzamy, czy pojawił się nowy zrzut z gry
+function watchGameShots() {
+  let since = Date.now(), playing = false;
+  Host.onGame((g) => { playing = g.running; });
+  setInterval(async () => {
+    if (!playing) return;
+    const list = await Host.call("recent_screenshots", since, 5).catch(() => []);
+    if (!list.length) return;
+    since = Math.max(...list.map((x) => x.time));
+    toast(`Nowy zrzut z gry (${list.length}). Naciśnij G, żeby dodać go do mapy`);
+  }, 20000);
+}
+/* ---------- kody udostępniania ---------- */
+function shareCode(m) {
+  const d = { n: m.name, x: m.x, y: m.y, c: m.cat, t: m.note || undefined, i: m.icon, k: m.color };
+  return "MJM:" + btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+}
+function importCode(code) {
+  let d;
+  try { d = JSON.parse(decodeURIComponent(escape(atob(code.slice(4))))); } catch { return toast("Ten kod jest uszkodzony"); }
+  if (typeof d.x !== "number" || typeof d.y !== "number" || !d.n) return toast("Ten kod jest uszkodzony");
+  const m = { id: uid(), cat: catById[d.c] ? d.c : "moje", name: String(d.n).slice(0, 60), x: Math.round(d.x), y: Math.round(d.y),
+    note: String(d.t || "").slice(0, 600), icon: d.i, color: d.k, builtin: false };
+  state.markers.push(m);
+  addLeaflet(m, 0);
+  renderCats(); save();
+  select(m.id, true);
+  toast("Dodano znacznik z kodu: " + m.name);
+}
+
+/* ---------- kontakty przypięte do znacznika ---------- */
+function contactsHtml(m) {
+  let list = [];
+  try { list = (JSON.parse(localStorage.getItem("majestic-kontakty-v1")) || {}).contacts || []; } catch {}
+  const here = list.filter((c) => c.markerId === m.id);
+  if (!here.length) return "";
+  return `<div class="linked">${here.map((c) => `<button data-contact="${c.id}" title="Otwórz kontakt">${ico("me")}${esc(c.name)}</button>`).join("")}</div>`;
+}
+Host.onPayload((p) => {
+  if (p.select) { const m = state && state.markers.find((x) => x.id === p.select); if (m) select(m.id, true); else toast("Tego znacznika już nie ma na mapie"); }
+});
+
+/* ---------- warstwy z Majestic Wiki ---------- */
+const WIKI = {
+  captures: { name: "Terytoria gangów", color: "#ff5a6a" },
+  treasure: { name: "Strefy skarbów", color: "#f5b544" },
+  stash: { name: "Skrytki kontrabandy", color: "#b07cff" },
+  gatherer: { name: "Zbieractwo", color: "#3ddc97" },
+  mushroomer: { name: "Grzybiarz", color: "#c9a27a" },
+  animal: { name: "Zwierzęta (polowanie)", color: "#a4e05a" },
+  airdrop: { name: "Zrzuty zaopatrzenia", color: "#7fd1ff" },
+  "game-zones": { name: "Strefy gry", color: "#2fd4d4" },
+  "dmv-cameras": { name: "Fotoradary", color: "#ff8a3d" },
+};
+const wikiGroups = {};
+let wikiData = null;
+const wikiRenderer = L.canvas({ padding: 0.3 });
+
+// wiki podaje część nazw tylko po rosyjsku
+const RU_PL = [[/Зона камер DMV/, "Fotoradar DMV"], [/Зона кладов/, "Strefa skarbów"], [/Игровая зона/, "Strefa gry"], [/^Аirdrop/, "Airdrop"], [/Регион сбора/, "Region zbieractwa"]];
+const plName = (n) => RU_PL.reduce((t, [re, pl]) => t.replace(re, pl), n);
+function buildWikiLayer(slug, items) {
+  const cfg = WIKI[slug], g = L.layerGroup();
+  const cf = slug === "captures" ? state.capFilter || "" : "";
+  for (const it of items) {
+    if (cf && it.t === "cell" && (cf === "free" ? it.o : String(it.o) !== cf)) continue;
+    if (slug === "gatherer" && state.gathFilter && it.n !== state.gathFilter) continue;
+    const label = it.n ? esc(plName(it.n)) : cfg.name;
+    if (it.t === "cell") {
+      const [x, y, h] = it.c;
+      const col = it.oc || "#ffffff";
+      L.rectangle([[y - h, x - h], [y + h, x + h]], { renderer: wikiRenderer, color: col, weight: 0.6, opacity: it.o ? 0.5 : 0.15,
+        fillColor: col, fillOpacity: it.o ? 0.28 : 0.03 })
+        .bindTooltip(`${it.n ? label + " · " : ""}${it.o ? "Rodzina #" + it.o : "Wolne pole"}`, { className: "mk-tip", sticky: true }).addTo(g);
+    } else if (it.t === "g") {
+      L.polygon(it.c.map(([x, y]) => [y, x]), { renderer: wikiRenderer, color: (slug === "gatherer" && GATH_COL[it.n]) || it.col || cfg.color, weight: 1.5, fillOpacity: 0.18 })
+        .bindTooltip(label, { className: "mk-tip", sticky: true })
+        .on("click", (e) => { if (slug === "gatherer" && GATH_COL[it.n]) cooldownPopup(it, e.latlng); }).addTo(g);
+    } else if (it.t === "p" && slug !== "captures") {
+      L.circleMarker([it.c[1], it.c[0]], { renderer: wikiRenderer, radius: 6, color: "#0d0f14", weight: 2, fillColor: cfg.color, fillOpacity: 1 })
+        .bindTooltip(label, { className: "mk-tip", direction: "top" }).addTo(g);
+    }
+  }
+  return g;
+}
+function renderWikiPanel() {
+  const on = state.wikiOn || [];
+  const layers = wikiData ? wikiData.layers : {};
+  $("#wiki-layers").innerHTML = Object.entries(WIKI).map(([slug, cfg], i) => {
+    const n = (layers[slug] || []).filter((it) => slug !== "captures" || it.t === "cell").length;
+    const isOn = on.includes(slug);
+    return `<li class="cat ${isOn ? "on" : ""} ${n ? "" : "disabled"}" data-wiki="${slug}" style="--c:${cfg.color};--i:${i}">
+      <div class="cat-row"><span class="cat-open"><span class="cat-dot">${ico(slug === "dmv-cameras" ? "camera" : "flag")}</span>
+      <span class="cat-name">${cfg.name}</span><span class="cat-count">${n || "–"}</span></span>
+      <button class="switch" role="switch" aria-checked="${isOn}" ${n ? "" : "disabled"} title="${n ? "Pokaż lub ukryj" : "Najpierw kliknij Aktualizuj"}"></button></div></li>`;
+  }).join("") + capFilterHtml() + (typeof terrChangesHtml === "function" ? terrChangesHtml() : "") + gathFilterHtml();
+  $("#wiki-meta").textContent = !Host.available ? "Warstwy z wiki działają w aplikacji Majestic Companion."
+    : wikiData ? `Serwer ${wikiData.server} · pobrano ${new Date(wikiData.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+    : "Kliknij Aktualizuj, żeby pobrać warstwy (ok. 30 s, potrzebny internet).";
+}
+function setWikiVisible(slug, show) {
+  state.wikiOn = (state.wikiOn || []).filter((s) => s !== slug);
+  if (show) state.wikiOn.push(slug);
+  if (show && !wikiGroups[slug] && wikiData?.layers[slug]) wikiGroups[slug] = buildWikiLayer(slug, wikiData.layers[slug]);
+  const g = wikiGroups[slug];
+  if (g) show ? g.addTo(map) : map.removeLayer(g);
+  save(); renderWikiPanel();
+}
+$("#wiki-layers").addEventListener("change", (e) => {
+  if (e.target.id === "gath-filter") {
+    state.gathFilter = e.target.value;
+    if (wikiGroups.gatherer) { map.removeLayer(wikiGroups.gatherer); delete wikiGroups.gatherer; }
+    return setWikiVisible("gatherer", true);
+  }
+  if (e.target.id !== "cap-filter") return;
+  state.capFilter = e.target.value;
+  if (wikiGroups.captures) { map.removeLayer(wikiGroups.captures); delete wikiGroups.captures; }
+  setWikiVisible("captures", true);
+});
+$("#wiki-layers").addEventListener("click", (e) => {
+  if (e.target.closest(".cap-filter")) return;
+  const li = e.target.closest("[data-wiki]");
+  if (!li || li.classList.contains("disabled")) return;
+  setWikiVisible(li.dataset.wiki, !(state.wikiOn || []).includes(li.dataset.wiki));
+});
+async function loadWiki() {
+  if (!Host.available) return renderWikiPanel();
+  try { const raw = await Host.call("wiki_layers"); wikiData = raw ? JSON.parse(raw) : null; } catch { wikiData = null; }
+  Object.keys(wikiGroups).forEach((k) => { map.removeLayer(wikiGroups[k]); delete wikiGroups[k]; });
+  renderWikiPanel();
+  (state.wikiOn || []).forEach((s) => setWikiVisible(s, true));
+}
+$("#wiki-sync").addEventListener("click", async (e) => {
+  if (!Host.available) return toast("Aktualizacja z wiki działa w aplikacji Majestic Companion");
+  const b = e.currentTarget;
+  if (b.disabled) return;
+  b.disabled = true; b.textContent = "Pobieram…";
+  toast("Pobieram warstwy z Majestic Wiki. To potrwa ok. 30 sekund");
+  try {
+    const st = await Host.call("get_settings");
+    const r = await Host.call("wiki_sync", st.server || "PL1");
+    if (r.ok) toast(`Pobrano warstwy: ${Object.keys(r.counts).length}${r.errors.length ? " (bez " + r.errors.length + ")" : ""}`);
+    else toast("Nie udało się pobrać warstw. Sprawdź internet i spróbuj ponownie");
+    await loadWiki();
+  } catch { toast("Nie udało się pobrać warstw z wiki"); }
+  b.disabled = false; b.textContent = "Aktualizuj";
+});
+
+/* ---------- trasy i strefy rysowane na mapie ---------- */
+const drawGroup = L.layerGroup().addTo(map);
+let drawing = null;   // { kind: "route" | "zone", pts: [[lat,lng]], preview }
+const DRAW_COLORS = ["#f5b544", "#ff5a6a", "#4d8dff", "#3ddc97", "#b07cff", "#2fd4d4"];
+const dist = (pts) => pts.slice(1).reduce((a, p, i) => a + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
+const area = (pts) => Math.abs(pts.reduce((a, p, i) => { const q = pts[(i + 1) % pts.length]; return a + p[1] * q[0] - q[1] * p[0]; }, 0) / 2);
+
+function drawShape(d, group = drawGroup) {
+  const ll = d.pts;
+  const layer = d.kind === "route"
+    ? L.polyline(ll, { color: d.color, weight: 4, dashArray: "10 8", className: "route-line" })
+    : L.polygon(ll, { color: d.color, weight: 2, fillOpacity: 0.2, className: "zone-shape" });
+  const info = d.kind === "route" ? fmtDist(dist(ll)) : Math.round(area(ll) / 1000) / 1000 + " km²";
+  if (d.name) layer.bindTooltip(`${esc(d.name)} · ${info}`, { className: "mk-tip", sticky: true });
+  return layer.addTo(group);
+}
+function renderDrawings() {
+  drawGroup.clearLayers();
+  (state.drawings || []).forEach((d) => drawShape(d));
+  const list = state.drawings || [];
+  $("#draw-list").innerHTML = list.length ? list.map((d, i) => `<li><button class="place" data-draw="${d.id}" style="--c:${d.color};--i:${i}"><i></i>
+      <span>${esc(d.name)}</span><small>${d.kind === "route" ? fmtDist(dist(d.pts)) : "strefa"}</small></button>
+      ${d.kind === "route" && d.pts.length > 2 ? `<button class="draw-del" data-opt-draw="${d.id}" title="Ustaw punkty w najkrótszej kolejności (od pierwszego)"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 4 7-7M14 9h6v6"/></svg></button>` : ""}
+      <button class="draw-del" data-del-draw="${d.id}" title="Usuń"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join("")
+    : `<li class="empty">Narysuj trasę (R) albo strefę (Z).</li>`;
+}
+function startDraw(kind) {
+  stopPlacing(); closeCard(); cancelDraw();
+  drawing = { kind, pts: [], color: DRAW_COLORS[(state.drawings || []).length % DRAW_COLORS.length], preview: L.layerGroup().addTo(map) };
+  $("#placing-hint .ph-text").textContent = kind === "route"
+    ? "Klikaj kolejne punkty trasy. Enter kończy, Backspace cofa"
+    : "Klikaj rogi strefy. Enter kończy, Backspace cofa";
+  $("#placing-hint").hidden = false;
+  map.getContainer().classList.add("placing");
+  map.doubleClickZoom.disable();
+}
+function redrawPreview() {
+  if (!drawing) return;
+  drawing.preview.clearLayers();
+  if (drawing.pts.length) drawShape({ ...drawing, name: "" }, drawing.preview);
+  drawing.pts.forEach((p) => L.circleMarker(p, { radius: 5, color: "#0d0f14", weight: 2, fillColor: drawing.color, fillOpacity: 1 }).addTo(drawing.preview));
+  const n = drawing.pts.length;
+  if (n > 1) $("#placing-hint .ph-text").textContent = drawing.kind === "route" ? `Trasa: ${fmtDist(dist(drawing.pts))} · Enter kończy` : `${n} rogi · Enter kończy`;
+}
+function cancelDraw() {
+  if (!drawing) return;
+  map.removeLayer(drawing.preview);
+  drawing = null;
+  map.doubleClickZoom.enable();
+  $("#placing-hint").hidden = true;
+  $("#placing-hint .ph-text").textContent = "Kliknij na mapie, gdzie postawić znacznik";
+  map.getContainer().classList.remove("placing");
+}
+function finishDraw() {
+  const d = drawing;
+  if (!d) return;
+  const min = d.kind === "route" ? 2 : 3;
+  if (d.pts.length < min) return toast(d.kind === "route" ? "Trasa potrzebuje co najmniej 2 punktów" : "Strefa potrzebuje co najmniej 3 rogów");
+  const n = (state.drawings || []).filter((x) => x.kind === d.kind).length + 1;
+  const item = { id: uid(), kind: d.kind, pts: d.pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color: d.color, name: (d.kind === "route" ? "Trasa " : "Strefa ") + n };
+  (state.drawings ||= []).push(item);
+  cancelDraw(); save(); renderDrawings();
+  toast(d.kind === "route" ? `Zapisano trasę: ${fmtDist(dist(item.pts))}` : "Zapisano strefę");
+}
+map.on("click", (e) => { if (drawing) { drawing.pts.push([e.latlng.lat, e.latlng.lng]); redrawPreview(); } });
+$("#draw-route").addEventListener("click", () => startDraw("route"));
+$("#draw-zone").addEventListener("click", () => startDraw("zone"));
+$("#draw-list").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-del-draw]");
+  if (del) { state.drawings = state.drawings.filter((d) => d.id !== del.dataset.delDraw); save(); renderDrawings(); return toast("Usunięto"); }
+  const b = e.target.closest("[data-draw]");
+  const d = b && state.drawings.find((x) => x.id === b.dataset.draw);
+  if (d) map.flyToBounds(L.latLngBounds(d.pts), { padding: [80, 80], duration: 1 });
+});
+document.addEventListener("keydown", (e) => {
+  if (!drawing || /INPUT|TEXTAREA/.test(document.activeElement?.tagName)) return;
+  if (e.key === "Enter") { e.preventDefault(); finishDraw(); }
+  if (e.key === "Backspace") { e.preventDefault(); drawing.pts.pop(); redrawPreview(); }
+  if (e.key === "Escape") { e.stopImmediatePropagation(); cancelDraw(); }
+}, true);
+
+/* ---------- dziennik przy znaczniku ---------- */
+function journalHtml(m) {
+  const list = (m.log || []).slice().reverse();
+  return `<div class="card-sec"><div class="shots-head"><span>Dziennik</span><small>${list.length || ""}</small></div>
+    <form class="jr-add" id="jr-form"><input id="jr-in" maxlength="160" placeholder="np. skrytka pusta, ktoś tu stał…"><button class="copy-btn">Dodaj</button></form>
+    <ul class="jr">${list.slice(0, 8).map((l) => `<li><time>${new Date(l.at).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</time><span>${esc(l.t)}</span></li>`).join("")}</ul></div>`;
+}
+function bindJournal(m) {
+  const f = $("#jr-form"); if (!f) return;
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const t = $("#jr-in").value.trim(); if (!t) return;
+    (m.log ||= []).push({ at: Date.now(), t });
+    save(); renderCard(m);
+    setTimeout(() => $("#jr-in")?.focus(), 30);
+  };
+}
+
+/* ---------- filtr terytoriów ---------- */
+/* zbieractwo: kraby (owoce morza), wodorosty, jagody, zioła — osobne kolory i filtr */
+const GATH_COL = { "Wodorosty": "#3ddc97", "Owoce morza": "#ff8a3d", "Jagody": "#b07cff", "Zioła": "#c6e04a" };
+function gathFilterHtml() {
+  const items = wikiData?.layers?.gatherer || [];
+  if (!items.length || !(state.wikiOn || []).includes("gatherer")) return "";
+  const kinds = {};
+  items.forEach((it) => { if (GATH_COL[it.n]) kinds[it.n] = (kinds[it.n] || 0) + 1; });
+  const f = state.gathFilter || "";
+  return `<li class="cap-filter"><select id="gath-filter" aria-label="Filtr zbieractwa">
+    <option value="">Wszystko do zbierania</option>
+    ${Object.entries(kinds).map(([n, c]) => `<option value="${n}" ${f === n ? "selected" : ""}>${n === "Owoce morza" ? "Owoce morza (kraby)" : n === "Wodorosty" ? "Wodorosty (glony)" : n} · ${c}</option>`).join("")}
+  </select><button class="gath-route" type="button" data-gath-route>Wyznacz trasę przez te strefy</button></li>`;
+}
+function capFilterHtml() {
+  const cells = (wikiData?.layers?.captures || []).filter((c) => c.t === "cell");
+  if (!cells.length || !(state.wikiOn || []).includes("captures")) return "";
+  const fams = {};
+  cells.forEach((c) => { if (c.o) (fams[c.o] ||= { n: 0, col: c.oc }).n++; });
+  const f = state.capFilter || "";
+  return `<li class="cap-filter"><select id="cap-filter" aria-label="Filtr terytoriów">
+    <option value="">Wszystkie terytoria</option><option value="free" ${f === "free" ? "selected" : ""}>Tylko wolne pola</option>
+    ${Object.entries(fams).sort((a, b) => b[1].n - a[1].n).map(([id, v]) => `<option value="${id}" ${f === id ? "selected" : ""}>Rodzina #${id} · ${v.n} pól</option>`).join("")}
+  </select></li>`;
+}
+
+/* ---------- grupowanie znaczników przy oddaleniu ---------- */
+const clusterLayer = L.layerGroup().addTo(map);
+let clustering = false, clusterTimer = 0;
+function recluster() {
+  clustering = true;
+  clusterLayer.clearLayers();
+  document.querySelectorAll(".leaflet-marker-icon.in-cluster").forEach((el) => el.classList.remove("in-cluster"));
+  if (map.getZoom() < 4) {
+    const cells = new Map(), size = 72;
+    for (const lm of leafletById.values()) {
+      if (!map.hasLayer(lm)) continue;
+      const p = map.latLngToLayerPoint(lm.getLatLng()), k = Math.floor(p.x / size) + ":" + Math.floor(p.y / size);
+      if (!cells.has(k)) cells.set(k, []);
+      cells.get(k).push(lm);
+    }
+    for (const list of cells.values()) {
+      if (list.length < 2) continue;
+      list.forEach((lm) => lm.getElement()?.classList.add("in-cluster"));
+      const lat = list.reduce((a, m) => a + m.getLatLng().lat, 0) / list.length, lng = list.reduce((a, m) => a + m.getLatLng().lng, 0) / list.length;
+      const sz = list.length > 30 ? 46 : list.length > 10 ? 40 : 34;
+      L.marker([lat, lng], { keyboard: false, icon: L.divIcon({ className: "", iconSize: [sz, sz], html: `<div class="clu" style="--s:${sz}px"><b>${list.length}</b></div>` }) })
+        .bindTooltip(`${list.length} miejsc · kliknij, żeby przybliżyć`, { className: "mk-tip", direction: "top" })
+        .on("click", () => map.flyTo([lat, lng], Math.min(map.getZoom() + 1.5, 5), { duration: 0.6 }))
+        .addTo(clusterLayer);
+    }
+  }
+  clustering = false;
+}
+const scheduleCluster = () => { clearTimeout(clusterTimer); clusterTimer = setTimeout(recluster, 80); };
+map.on("zoomend moveend", scheduleCluster);
+map.on("layeradd layerremove", (e) => { if (!clustering && e.layer instanceof L.Marker && !clusterLayer.hasLayer(e.layer)) scheduleCluster(); });
+scheduleCluster();
+
+/* ---------- trasa zbierania przez strefy wybranego typu ---------- */
+function gatherRoute() {
+  const f = state.gathFilter || "";
+  const items = (wikiData?.layers?.gatherer || []).filter((it) => GATH_COL[it.n] && (!f || it.n === f));
+  // środek strefy w układzie mapy [lat=y, lng=x]
+  let left = items.map((it) => it.t === "g"
+    ? [it.c.reduce((a, p) => a + p[1], 0) / it.c.length, it.c.reduce((a, p) => a + p[0], 0) / it.c.length]
+    : [it.c[1], it.c[0]]);
+  if (left.length < 2) return toast("Za mało stref, żeby wyznaczyć trasę");
+  // najbliższy sąsiad od strefy najbardziej na zachód: prosto i wystarczająco dobrze dla kilkunastu punktów
+  left.sort((a, b) => a[1] - b[1]);
+  const pts = [left.shift()];
+  while (left.length) {
+    const last = pts[pts.length - 1];
+    let bi = 0, bd = Infinity;
+    left.forEach((p, i) => { const d = Math.hypot(p[0] - last[0], p[1] - last[1]); if (d < bd) { bd = d; bi = i; } });
+    pts.push(left.splice(bi, 1)[0]);
+  }
+  const label = f === "Owoce morza" ? "kraby" : f === "Wodorosty" ? "glony" : (f || "zbieractwo").toLowerCase();
+  const item = { id: uid(), kind: "route", pts: pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color: GATH_COL[f] || "#22c55e", name: "Zbieranie: " + label };
+  (state.drawings ||= []).push(item);
+  save(); renderDrawings();
+  map.flyToBounds(L.latLngBounds(item.pts), { padding: [80, 80], duration: 1 });
+  toast(`Trasa przez ${pts.length} stref: ${fmtDist(dist(item.pts))}. Zapisana w „Trasy i strefy”`);
+}
+$("#wiki-layers").addEventListener("click", (e) => { if (e.target.closest("[data-gath-route]")) gatherRoute(); });
+
+/* ---------- przypomnienie o odnowieniu strefy zbierania ---------- */
+function cooldownPopup(it, ll) {
+  const name = plName(it.n);
+  L.popup({ className: "cd-pop", offset: [0, -4] }).setLatLng(ll).setContent(
+    `<b>${esc(name)}</b><p>Wyzbierane? Przypomnę, kiedy strefa się odnowi.</p>
+     <div class="cd-btns">${[15, 30, 60, 120].map((m) => `<button data-cd="${m}" data-cd-name="${esc(name)}">${m >= 60 ? m / 60 + " h" : m + " min"}</button>`).join("")}</div>`).openOn(map);
+}
+map.getContainer().addEventListener("click", (e) => {
+  const b = e.target.closest("[data-cd]"); if (!b) return;
+  const min = +b.dataset.cd, name = b.dataset.cdName + " · odnowienie";
+  let timers = [];
+  try { timers = JSON.parse(localStorage.getItem("majestic-minutniki-v1")) || []; } catch {}
+  timers.push({ id: uid(), name, dur: min * 60000, end: Date.now() + min * 60000, rep: false, c: "#22c55e" });
+  try { localStorage.setItem("majestic-minutniki-v1", JSON.stringify(timers)); } catch {}
+  window.parent.postMessage({ __reload: "minutniki" }, "*");  // zakładka Minutniki wczyta nowy minutnik
+  map.closePopup();
+  toast(`Przypomnę za ${min >= 60 ? min / 60 + " h" : min + " min"}: ${b.dataset.cdName}`);
+});
+
+/* ---------- zdjęcie mapy do schowka ---------- */
+const PhotoCtl = L.Control.extend({
+  options: { position: "bottomright" },
+  onAdd() {
+    const b = L.DomUtil.create("button", "photo-ctl");
+    b.type = "button"; b.title = "Zdjęcie mapy: zapis i kopia do schowka (wklej na Discordzie)"; b.setAttribute("aria-label", "Zdjęcie mapy");
+    b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+    L.DomEvent.disableClickPropagation(b);
+    b.onclick = async () => {
+      if (!Host.available) return toast("Zdjęcie mapy działa w aplikacji");
+      try {
+        const r = await Host.call("capture_map");
+        toast(r.copied ? "Zdjęcie skopiowane. Wklej na Discordzie (Ctrl+V)" : "Zapisano zdjęcie w Obrazy/Majestic");
+      } catch { toast("Nie udało się zrobić zdjęcia"); }
+    };
+    return b;
+  },
+});
+new PhotoCtl().addTo(map);
+
+/* ---------- najkrótsza kolejność punktów trasy (kurier) ---------- */
+$("#draw-list").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-opt-draw]"); if (!b) return;
+  e.stopPropagation();
+  const d = state.drawings.find((x) => x.id === b.dataset.optDraw); if (!d) return;
+  const before = dist(d.pts), left = d.pts.slice(1), out = [d.pts[0]];
+  while (left.length) {
+    const l = out[out.length - 1];
+    let bi = 0, bd = Infinity;
+    left.forEach((p, i) => { const dd = Math.hypot(p[0] - l[0], p[1] - l[1]); if (dd < bd) { bd = dd; bi = i; } });
+    out.push(left.splice(bi, 1)[0]);
+  }
+  if (dist(out) >= before) return toast("Ta trasa już ma najkrótszą kolejność");
+  d.pts = out; save(); renderDrawings();
+  toast(`Krótsza trasa: ${fmtDist(dist(out))} zamiast ${fmtDist(before)}`);
+}, true);
+
+/* ---------- pasek ulubionych na mapie ---------- */
+function renderFavbar() {
+  const favs = (state.markers || []).filter((m) => m.fav).slice(0, 10);
+  const bar = $("#favbar");
+  bar.hidden = !favs.length;
+  bar.innerHTML = favs.map((m) => `<button data-fav="${m.id}" style="--c:${markerColor(m)}" title="${esc(m.name)}"><i></i>${esc(m.name)}</button>`).join("");
+}
+$("#favbar").addEventListener("click", (e) => { const b = e.target.closest("[data-fav]"); if (b) select(b.dataset.fav, true); });
+const _renderCats = renderCats;
+renderCats = function () { _renderCats.apply(this, arguments); renderFavbar(); };
+renderFavbar();
+
+/* ---------- zmiany terytoriów od ostatniej aktualizacji wiki ---------- */
+let terrHist = [];
+async function loadTerrHist() { if (Host.available) { try { terrHist = await Host.call("wiki_history") || []; } catch {} renderWikiPanel(); } }
+function terrChangesHtml() {
+  if (!(state.wikiOn || []).includes("captures")) return "";
+  const last = terrHist[terrHist.length - 1];
+  if (!last) return `<li class="terr-ch"><small>Zmiany terytoriów pojawią się po następnym „Aktualizuj”.</small></li>`;
+  const ch = Object.entries(last.diff || {}).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 6);
+  const when = new Date(last.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return `<li class="terr-ch"><b>Zmiany terytoriów</b><small>od poprzedniej aktualizacji · ${when}</small>
+    ${ch.length ? `<ul>${ch.map(([f, n]) => `<li><span>Rodzina #${esc(f)}</span><em class="${n > 0 ? "up" : "down"}">${n > 0 ? "+" : ""}${n} pól</em></li>`).join("")}</ul>` : `<small>Bez zmian.</small>`}</li>`;
+}
+loadTerrHist();
+
+$("#me-btn").addEventListener("click", startMe);
+$("#shots-btn").addEventListener("click", () => openInbox(null));
+boot();
+})();
