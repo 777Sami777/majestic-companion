@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -70,6 +70,7 @@ WIKI_FILE = os.path.join(DATA_DIR, "warstwy_wiki.json")
 TERR_FILE = os.path.join(DATA_DIR, "historia_terytoriow.json")
 VEH_FILE = os.path.join(DATA_DIR, "pojazdy.json")
 CRAFT_FILE = os.path.join(DATA_DIR, "crafting.json")
+WIKI_LISTS = {"realties": "nieruchomosci", "businesses": "biznesy", "clothes": "ubrania", "haircuts": "fryzury", "tattoos": "tatuaze"}
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 WIKI_LAYERS = ["captures", "treasure", "stash", "gatherer", "mushroomer", "animal", "airdrop", "game-zones", "dmv-cameras"]
 
@@ -504,6 +505,42 @@ class Api:
         save_json(VEH_FILE, out)
         return {"ok": True, "count": len(out["items"])}
 
+    def wiki_list(self, slug):
+        """Lista z wiki (nieruchomości, biznesy, ubrania, fryzury, tatuaże): pobrana albo dołączona."""
+        if slug not in WIKI_LISTS:
+            return None
+        name = WIKI_LISTS[slug] + ".json"
+        for path in (os.path.join(DATA_DIR, name), resource("dane", name)):
+            data = load_json(path, None)
+            if data:
+                return data
+        return None
+
+    def wiki_list_sync(self, slug):
+        if slug not in WIKI_LISTS:
+            return {"ok": False, "error": "nieznana lista"}
+        script = open(resource("wiki_list.js"), encoding="utf-8").read()
+        win = webview.create_window("wiki-lista", f"https://wiki.gta5majestic.com/pl/{slug}", hidden=True)
+        data = None
+        try:
+            for _ in range(300):  # do 2,5 min: listy mają kilkadziesiąt stron
+                time.sleep(0.5)
+                try:
+                    if win.evaluate_js("!!document.querySelector('button') && !window.__listStarted"):
+                        win.evaluate_js("window.__listStarted = true;" + script)
+                    data = win.evaluate_js("window.__list || null")
+                except Exception:
+                    data = None
+                if data:
+                    break
+        finally:
+            win.destroy()
+        if not data or data.get("error"):
+            return {"ok": False, "error": (data or {}).get("error", "brak odpowiedzi wiki")}
+        out = {"at": time.time() * 1000, "items": data["items"]}
+        save_json(os.path.join(DATA_DIR, WIKI_LISTS[slug] + ".json"), out)
+        return {"ok": True, "count": len(out["items"])}
+
     def crafting(self):
         """Przepisy kuchenne i crafting frakcji: pobrane z wiki albo dołączone do aplikacji."""
         for path in (CRAFT_FILE, resource("crafting.json")):
@@ -729,7 +766,8 @@ start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 
 
 DEFAULT_SETTINGS = {"shotDirs": [], "overlayKey": "F10", "server": "PL1", "trayOnClose": True,
-                    "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True, "compactOverlay": False}
+                    "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True, "compactOverlay": False,
+                    "hotPresets": [1, 2, 3], "autoPayday": False}
 WEBHOOK_RE = re.compile(r"^https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+$")
 VK = {f"F{i}": 0x6F + i for i in range(1, 13)}
 

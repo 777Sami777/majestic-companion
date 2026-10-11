@@ -57,6 +57,7 @@
       <section class="panel rise" style="--d:2"><h2>Magazyn</h2>
         <form class="it-add" id="it-add" autocomplete="off"><input type="text" name="name" maxlength="40" placeholder="np. Materiały do broni"><input type="number" name="qty" value="1" min="0" aria-label="Ilość"><button class="btn primary">Dodaj</button></form>
         <ul class="items" id="items"></ul>
+        <label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--text-2);font-size:13.5px"><input type="checkbox" id="store-sync"> Magazyn na żywo z ekipą (przez mapę ekipy)</label>
       </section>
       <section class="panel rise" style="--d:3"><h2>Raport na Discorda</h2>
         <pre class="report" id="report"></pre>
@@ -78,7 +79,8 @@
 const { $, esc, uid, money } = U;
 const KEY = "majestic-ekipa-v1";
 let data = U.load(KEY, { events: [], items: [] });
-const save = () => U.save(KEY, data);
+// magazyn na żywo: przy zaznaczonej opcji każda zmiana leci do ekipy przez mapę ekipy
+const save = () => { U.save(KEY, data); if (U.load("majestic-magazyn-sync-v1", false) && !save.quiet) window.parent.postMessage({ __toMap: { crewStore: data.items.map(({ name, qty }) => ({ name, qty })) } }, "*"); };
 const DAY = 86400000;
 const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const xIcon = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -184,6 +186,14 @@ $("#code-in").addEventListener("submit", (e) => {
   });
   save(); render(); e.target.code.value = "";
   U.toast(`Wczytano: ${ne} spotkań, ${ni} zmian w magazynie`);
+});
+$("#store-sync").checked = U.load("majestic-magazyn-sync-v1", false);
+$("#store-sync").addEventListener("change", (e) => { U.save("majestic-magazyn-sync-v1", e.target.checked); if (e.target.checked) { save(); U.toast("Magazyn będzie się synchronizował z ekipą"); } });
+Host.onPayload((p) => {
+  if (!Array.isArray(p.store) || !U.load("majestic-magazyn-sync-v1", false)) return;
+  data.items = p.store.filter((x) => x && typeof x.name === "string").map((x) => ({ id: (data.items.find((i) => i.name === x.name) || {}).id || uid(), name: x.name.slice(0, 40), qty: Math.max(0, Math.round(+x.qty || 0)) }));
+  save.quiet = true; save(); save.quiet = false; render();
+  U.toast(`${p.by || "Ekipa"} zmienił magazyn`);
 });
 Host.onPayload((p) => { if (p.refresh) { data = U.load(KEY, data); render(); } });
 // domyślna data w formularzu: dziś za godzinę, pełna godzina

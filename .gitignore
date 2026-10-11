@@ -9,3 +9,5 @@ __pycache__/
 build.log
 tools/build.log
 *.zip
+setup_build/
+build_setup.log

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rynek</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.views{display:flex;gap:6px;margin-bottom:14px}
+.views a{text-decoration:none}
+.bar{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:12px}
+.tbl-wrap{overflow:auto;max-height:calc(100vh - 300px);border:1px solid var(--line-2);border-radius:6px;background:var(--bg-2)}
+table.t{min-width:760px}
+.t th{position:sticky;top:0;background:var(--card);z-index:1;cursor:pointer;user-select:none;white-space:nowrap}
+.t th[aria-sort=ascending]::after{content:" ▲";color:var(--accent)}
+.t th[aria-sort=descending]::after{content:" ▼";color:var(--accent)}
+.t th.nosort{cursor:default}
+.t td.num,.t th.num{text-align:right}
+.t tr:hover td{background:rgba(var(--fg-rgb),.035)}
+.t img{width:72px;height:44px;object-fit:cover;border-radius:4px;display:block;background:var(--card)}
+.t td b{font-weight:600}
+.t td small{display:block;color:var(--text-3)}
+.go{height:30px;padding:0 10px;border-radius:4px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text);font:600 13px var(--display)}
+.go:hover{background:color-mix(in srgb,var(--accent) 28%,transparent)}
+.grid-t{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.grid-t li{position:relative;padding:10px;border-radius:6px;background:var(--bg-2);border:1px solid var(--line-2);text-align:center}
+.grid-t img{width:100%;height:120px;object-fit:contain}
+.grid-t b{display:block;font-weight:600;font-size:13.5px}
+.grid-t small{color:var(--text-3);font-size:12px}
+.star{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:4px;display:grid;place-items:center;color:var(--text-3)}
+.star.on{color:#eab308}
+.star svg{width:18px;height:18px}
+.star.on svg{fill:currentColor}
+.meta{display:flex;justify-content:space-between;margin:8px 0 0;color:var(--text-3);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Rynek</h1><p class="sub" id="lead"></p></div>
+    <button class="btn" id="sync"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg><span>Aktualizuj z wiki</span></button></div>
+  <nav class="chips views rise" style="--d:1" aria-label="Widok rynku">
+    <a class="chip" href="../pojazdy/index.html?embed=1">Pojazdy</a>
+    <a class="chip" data-v="realties" href="?embed=1&v=realties">Nieruchomości</a>
+    <a class="chip" data-v="businesses" href="?embed=1&v=businesses">Biznesy</a>
+    <a class="chip" data-v="tattoos" href="?embed=1&v=tattoos">Tatuaże</a>
+  </nav>
+  <div class="bar rise" style="--d:1">
+    <input type="text" id="q" placeholder="Szukaj…" aria-label="Szukaj">
+    <select id="f1" aria-label="Rodzaj"></select>
+    <select id="f2" aria-label="Filtr"></select>
+  </div>
+  <div id="out" class="rise" style="--d:2"></div>
+  <p class="meta"><span id="count"></span><span id="src"></span></p>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc, money } = U;
+const view = new URLSearchParams(location.search).get("v") || "realties";
+const RT = { house: "Dom", apartment: "Mieszkanie", office: "Biuro", warehouse: "Magazyn" };
+const BT = { atm: "Bankomat", gas: "Stacja paliw", shop: "Sklep 24/7", clothes: "Sklep odzieżowy", ammunation: "Sklep z bronią", carwash: "Myjnia", tattoo: "Salon tatuażu", barbershop: "Fryzjer", lsc: "LS Customs", bar: "Bar", club: "Klub", electrician: "Elektryk", farm: "Farma" };
+const ZONES = { ZONE_TORSO: "Tułów", ZONE_HEAD: "Głowa", ZONE_LEFT_ARM: "Lewa ręka", ZONE_RIGHT_ARM: "Prawa ręka", ZONE_LEFT_LEG: "Lewa noga", ZONE_RIGHT_LEG: "Prawa noga" };
+const FAV = "majestic-ulubione-tatuaze-v1";
+let items = [], sortK = "price", dir = -1, favs = U.load(FAV, []);
+document.querySelectorAll("[data-v]").forEach((a) => a.classList.toggle("on", a.dataset.v === view));
+$("#lead").textContent = { realties: "Domy, mieszkania, biura i magazyny z Majestic Wiki: cena, garaż, lokatorzy. Kliknij „Na mapie”, żeby zobaczyć gdzie są.",
+  businesses: "Biznesy do kupienia: stacje, sklepy, bankomaty i inne, z ceną kupna i odsprzedaży.", tattoos: "Tatuaże z Majestic Wiki. Gwiazdką oznaczysz ulubione, żeby wrócić do nich przy wizycie w salonie." }[view];
+
+function setupFilters() {
+  if (view === "realties") {
+    $("#f1").innerHTML = `<option value="">Wszystkie rodzaje</option>${Object.entries(RT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}`;
+    $("#f2").innerHTML = `<option value="0">Dowolny garaż</option><option value="2">Garaż 2+</option><option value="5">Garaż 5+</option><option value="10">Garaż 10+</option><option value="20">Garaż 20+</option>`;
+  } else if (view === "businesses") {
+    $("#f1").innerHTML = `<option value="">Wszystkie rodzaje</option>${[...new Set(items.map((b) => b.type))].map((k) => `<option value="${esc(k)}">${esc(BT[k] || k)}</option>`).join("")}`;
+    $("#f2").hidden = true;
+  } else {
+    $("#f1").innerHTML = `<option value="">Wszystkie strefy</option>${Object.entries(ZONES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}`;
+    $("#f2").innerHTML = `<option value="">Wszystkie</option><option value="fav">Tylko ulubione</option>`;
+  }
+}
+const th = (k, label, num) => `<th class="${num ? "num" : ""}" data-k="${k}" aria-sort="${k === sortK ? (dir > 0 ? "ascending" : "descending") : "none"}">${label}</th>`;
+function render() {
+  const q = $("#q").value.trim().toLowerCase(), f1 = $("#f1").value, f2 = $("#f2").value;
+  let list = items.filter((x) => (!f1 || (view === "tattoos" ? x.zone === f1 : x.type === f1)));
+  if (view === "realties") list = list.filter((r) => (r.garageSlots || 0) >= +f2 && (!q || (RT[r.type] + " " + r.serial).toLowerCase().includes(q)));
+  else if (view === "businesses") list = list.filter((b) => !q || ((b.name || "") + " " + (BT[b.type] || b.type)).toLowerCase().includes(q));
+  else list = list.filter((t) => (f2 !== "fav" || favs.includes(t.id)) && (!q || (t.name || "").toLowerCase().includes(q)));
+  list.sort((a, b) => ((a[sortK] ?? 0) > (b[sortK] ?? 0) ? 1 : (a[sortK] ?? 0) < (b[sortK] ?? 0) ? -1 : 0) * dir);
+  const shown = list.slice(0, 300);
+  if (view === "realties") $("#out").innerHTML = `<div class="tbl-wrap"><table class="t"><thead><tr><th class="nosort"></th>${th("serial", "Nieruchomość")}${th("price", "Cena", 1)}${th("garageSlots", "Garaż", 1)}${th("maxTenants", "Lokatorzy", 1)}<th class="nosort"></th></tr></thead><tbody>
+    ${shown.map((r) => `<tr><td><img src="${esc(r.imageUrl || "")}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td><td><b>${RT[r.type] || esc(r.type)} #${r.serial}</b><small>${r.isBuyable ? "do kupienia" : "niedostępna"}${r.isTradable ? " · handel" : ""}</small></td>
+      <td class="num">${r.price ? money(r.price) : "—"}</td><td class="num">${r.garageSlots || 0}</td><td class="num">${r.maxTenants || 0}</td>
+      <td>${r.mapPosition ? `<button class="go" data-go="${r.mapPosition.join(",")}" data-label="${esc((RT[r.type] || r.type) + " #" + r.serial)}">Na mapie</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
+  else if (view === "businesses") $("#out").innerHTML = `<div class="tbl-wrap"><table class="t"><thead><tr><th class="nosort"></th>${th("name", "Biznes")}${th("buyPrice", "Kupno", 1)}${th("sellPrice", "Odsprzedaż", 1)}<th class="nosort"></th></tr></thead><tbody>
+    ${shown.map((b) => `<tr><td><img src="${esc(b.imageUrl || "")}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td><td><b>${esc(b.name || b.slug)}</b><small>${esc(BT[b.type] || b.type)}</small></td>
+      <td class="num">${b.buyPrice ? money(b.buyPrice) : "—"}</td><td class="num">${b.sellPrice ? money(b.sellPrice) : "—"}</td>
+      <td>${b.mapPosition ? `<button class="go" data-go="${b.mapPosition.join(",")}" data-label="${esc(b.name || b.slug)}">Na mapie</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
+  else $("#out").innerHTML = `<ul class="grid-t">${shown.map((t) => `<li><button class="star ${favs.includes(t.id) ? "on" : ""}" data-fav="${t.id}" title="Ulubiony" aria-label="Ulubiony" aria-pressed="${favs.includes(t.id)}"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg></button>
+      <img src="${esc(t.imageUrl || "")}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><b>${esc(t.name)}</b><small>${ZONES[t.zone] || esc(t.zone || "")} · ${t.price ? money(t.price) : "—"}${t.priceType === "donate" ? " (MC)" : ""}</small></li>`).join("")}</ul>`;
+  $("#count").textContent = `${list.length} pozycji${list.length > 300 ? " · pokazuję 300, zawęź filtry" : ""}`;
+}
+$("#out").addEventListener("click", (e) => {
+  const th = e.target.closest("th[data-k]");
+  if (th) { const k = th.dataset.k; dir = k === sortK ? -dir : -1; sortK = k; return render(); }
+  const g = e.target.closest("[data-go]");
+  if (g) return Host.nav("mapa", { goto: g.dataset.go.split(",").map(Number), label: g.dataset.label });
+  const s = e.target.closest("[data-fav]");
+  if (s) { const id = +s.dataset.fav; favs = favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id]; U.save(FAV, favs); render(); }
+});
+["q", "f1", "f2"].forEach((id) => $("#" + id).addEventListener("input", render));
+async function load() {
+  if (!Host.available) { $("#count").textContent = "Rynek działa w aplikacji Majestic Companion."; return; }
+  const d = await Host.call("wiki_list", view);
+  items = (d && d.items) || [];
+  sortK = view === "businesses" ? "buyPrice" : "price";
+  $("#src").textContent = d && d.at ? "Dane z Majestic Wiki · " + new Date(d.at).toLocaleDateString("pl-PL") : "";
+  setupFilters(); render();
+}
+$("#sync").addEventListener("click", async (e) => {
+  const b = e.currentTarget, l = b.querySelector("span"); b.disabled = true; l.textContent = "Pobieram… (do 2 min)";
+  try { const r = await Host.call("wiki_list_sync", view); U.toast(r.ok ? `Pobrano ${r.count} pozycji` : "Nie udało się: " + r.error); if (r.ok) await load(); }
+  catch (err) { U.toast("Nie udało się: " + err.message); }
+  b.disabled = false; l.textContent = "Aktualizuj z wiki";
+});
+load();
+})();
+</script>
+</body>
+</html>

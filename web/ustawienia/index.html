@@ -26,6 +26,9 @@
 .tog input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
 .tog i{position:absolute;inset:0;border-radius:8px;background:rgba(128,128,140,.3);transition:background .3s var(--ease)}
 .tog i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.35);transition:transform .35s var(--ease)}
+.hot{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);white-space:nowrap}
+.hot select{width:auto;padding:6px 8px}
+#hot{flex-direction:column;align-items:flex-end;gap:6px}
 .tog input:checked+i{background:var(--accent)}
 .tog input:checked+i::after{transform:translateX(18px)}
 .tog input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
@@ -40,6 +43,9 @@
   <section class="panel rise" style="--d:1"><h2>Gra</h2>
     <div class="row"><div class="txt"><b>Serwer Majestic</b><small>Dla tego serwera pobierane są terytoria gangów z wiki.</small></div><select id="server"></select></div>
     <div class="row"><div class="txt"><b>Kompaktowa nakładka</b><small>Po wciśnięciu klawisza nakładki okno staje się wąskim, lekko przezroczystym panelem przy prawej krawędzi ekranu. Szybkie minutniki: Ctrl+Shift+1, 2, 3.</small></div><label class="tog"><input type="checkbox" id="compact"><i></i></label></div>
+    <div class="row"><div class="txt"><b>Szybkie minutniki (działają w grze)</b><small>Wybierz, który gotowy minutnik startuje po Ctrl+Shift+1, 2 i 3.</small></div>
+      <div class="btns" id="hot"></div></div>
+    <div class="row"><div class="txt"><b>Automatyczny PayDay</b><small>Po wejściu na serwer startuje minutnik do najbliższej pełnej godziny i powtarza się co godzinę.</small></div><label class="tog"><input type="checkbox" id="autoPayday"><i></i></label></div>
     <div class="row"><div class="txt"><b>Nakładka nad grą</b><small>Klawisz pokazuje aplikację nad grą i chowa ją z powrotem. Gra musi działać w trybie okna bez ramki (Borderless).</small></div><select id="overlay"></select></div>
   </section>
 
@@ -195,11 +201,20 @@ async function loadRun() {
   $("#autostart").checked = await Host.call("get_autostart");
   $("#tray").checked = st ? st.trayOnClose !== false : true;
   $("#compact").checked = !!(st && st.compactOverlay);
+  $("#autoPayday").checked = !!(st && st.autoPayday);
+  renderHot();
   $("#ver").textContent = "Majestic Companion " + await Host.call("app_version");
 }
 $("#autostart").addEventListener("change", async (e) => { e.target.checked = await Host.call("set_autostart", e.target.checked); U.toast(e.target.checked ? "Aplikacja uruchomi się z Windowsem" : "Wyłączono start z Windowsem"); });
 $("#tray").addEventListener("change", (e) => set({ trayOnClose: e.target.checked }));
 $("#compact").addEventListener("change", (e) => set({ compactOverlay: e.target.checked }));
+$("#autoPayday").addEventListener("change", (e) => set({ autoPayday: e.target.checked }));
+const HOT_NAMES = ["PayDay", "Grzyby / zbieractwo", "Łowienie ryb", "Skrytka kontrabandy", "Przerwa", "Opłata za dom"];
+function renderHot() {
+  const hp = (st && st.hotPresets) || [1, 2, 3];
+  $("#hot").innerHTML = [0, 1, 2].map((i) => `<label class="hot">Ctrl+Shift+${i + 1} <select data-hot="${i}" aria-label="Ctrl+Shift+${i + 1}">${HOT_NAMES.map((n, j) => `<option value="${j + 1}" ${hp[i] === j + 1 ? "selected" : ""}>${n}</option>`).join("")}</select></label>`).join("");
+}
+$("#hot").addEventListener("change", (e) => { const i = +e.target.dataset.hot; const hp = [...((st && st.hotPresets) || [1, 2, 3])]; hp[i] = +e.target.value; set({ hotPresets: hp }); });
 $("#upd").addEventListener("click", async () => {
   const r = await Host.call("check_update");
   if (!r) return say("Nie udało się sprawdzić aktualizacji: repozytorium jest prywatne albo nie ma internetu.");

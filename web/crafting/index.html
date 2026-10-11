@@ -31,6 +31,9 @@
 .fr{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .fr span{padding:1px 6px;border-radius:3px;background:rgba(var(--fg-rgb),.07);font-size:11.5px;color:var(--text-2)}
 .mt{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.pr{display:flex;align-items:center;gap:10px}
+.pr input{width:100px;padding:5px 8px!important}
+.pos{color:var(--good);font-style:normal}.neg{color:var(--bad);font-style:normal}
 .src{margin:10px 0 0;color:var(--text-3);font-size:12.5px}
 @media (max-width:1000px){.layout{grid-template-columns:1fr}.detail{position:static}}
 </style>
@@ -64,22 +67,31 @@ const HOW = { cutting: "Krojenie", frying: "Smażenie", boiling: "Gotowanie", ba
 const FR = { lspd: "LSPD", lscsd: "LSCSD", ems: "EMS", army: "SANG", gov: "GOV", news: "WN", fib: "FIB", ballas: "Ballas", vagos: "Vagos", families: "Families", bloods: "Bloods", marabunta: "Marabunta" };
 const MT = { green: ["#22c55e", "zielone"], blue: ["#3b82f6", "niebieskie"], red: ["#ef4444", "czerwone"], yellow: ["#eab308", "żółte"], purple: ["#a855f7", "fioletowe"] };
 let data = { recipes: [], crafts: [] }, tab = "kitchen", sel = null, qty = 1;
+// ceny wpisane przez gracza (wiki nie podaje cen rynkowych): składnik -> $, danie -> $ za porcję
+const PKEY = "majestic-ceny-kuchnia-v1";
+let prices = U.load(PKEY, {});
+const recipeCost = (r) => r.ing.every(([n]) => prices[n] > 0) ? r.ing.reduce((a, [n, c]) => a + prices[n] * c, 0) : null;
+const recipeProfit = (r) => { const c = recipeCost(r), s = prices["danie:" + r.n]; return c !== null && s > 0 ? s * r.out - c : null; };
 const hrs = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) + " min" : ""}` : `${m} min`);
 
 function filters() {
   $("#filter").innerHTML = tab === "kitchen"
-    ? `<option value="">Wszystkie poziomy</option>${[...new Set(data.recipes.map((r) => r.lvl))].sort((a, b) => a - b).map((l) => `<option value="${l}">Poziom gotowania ${l}</option>`).join("")}`
+    ? `<option value="">Wszystkie poziomy</option><option value="profit">Najbardziej opłacalne (z Twoimi cenami)</option>${[...new Set(data.recipes.map((r) => r.lvl))].sort((a, b) => a - b).map((l) => `<option value="${l}">Poziom gotowania ${l}</option>`).join("")}`
     : `<option value="">Wszystkie frakcje</option>${[...new Set(data.crafts.flatMap((c) => c.fr))].map((f) => `<option value="${f}">${FR[f] || f}</option>`).join("")}`;
 }
 function items() {
   const q = $("#q").value.trim().toLowerCase(), f = $("#filter").value;
-  if (tab === "kitchen") return data.recipes.filter((r) => (!f || String(r.lvl) === f) && (!q || (r.n + " " + r.ing.map((x) => x[0]).join(" ")).toLowerCase().includes(q)));
+  if (tab === "kitchen") {
+    const list = data.recipes.filter((r) => (!f || f === "profit" || String(r.lvl) === f) && (!q || (r.n + " " + r.ing.map((x) => x[0]).join(" ")).toLowerCase().includes(q)));
+    // ranking: zysk na godzinę gotowania, przepisy bez cen na końcu
+    return f === "profit" ? list.map((r) => [r, recipeProfit(r)]).sort((a, b) => (b[1] === null ? -Infinity : b[1] / b[0].min) - (a[1] === null ? -Infinity : a[1] / a[0].min)).map((x) => x[0]) : list;
+  }
   return data.crafts.filter((c) => (!f || c.fr.includes(f)) && (!q || (c.n + " " + c.d).toLowerCase().includes(q)));
 }
 function render() {
   const list = items();
   $("#list").innerHTML = list.map((x) => `<li><button data-id="${x.id}" class="${sel === x.id ? "on" : ""}"><img src="${IMG(x.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
-    <span><b>${esc(x.n)}</b><small>${tab === "kitchen" ? `poz. ${x.lvl} · ${hrs(x.min)} · ${x.out} porcji` : `${x.mat} mat. · ${x.fr.map((f) => FR[f] || f).slice(0, 3).join(", ")}${x.fr.length > 3 ? "…" : ""}`}</small></span></button></li>`).join("")
+    <span><b>${esc(x.n)}</b><small>${tab === "kitchen" ? `poz. ${x.lvl} · ${hrs(x.min)} · ${x.out} porcji${recipeProfit(x) !== null ? ` · <em class="${recipeProfit(x) >= 0 ? "pos" : "neg"}">${recipeProfit(x) >= 0 ? "+" : ""}${U.money(recipeProfit(x))}</em>` : ""}` : `${x.mat} mat. · ${x.fr.map((f) => FR[f] || f).slice(0, 3).join(", ")}${x.fr.length > 3 ? "…" : ""}`}</small></span></button></li>`).join("")
     || `<li class="empty"><b>Brak wyników</b>${data.recipes.length || data.crafts.length ? "Zmień wyszukiwanie albo filtr." : "Kliknij „Aktualizuj z wiki”."}</li>`;
   renderDetail();
 }
@@ -90,7 +102,9 @@ function renderDetail() {
     const batches = Math.ceil(qty / Math.max(1, x.out));
     $("#detail").innerHTML = `<img src="${IMG(x.id)}" alt=""><h3>${esc(x.n)}</h3><p class="meta">Poziom gotowania ${x.lvl} · kuchnia ${x.klvl} · ${x.out} porcji w ${hrs(x.min)}</p>
       <label class="qty">Ile porcji? <input type="number" id="qty" min="1" value="${qty}"></label>
-      <h2>Składniki (${batches} × gotowanie)</h2><ul class="ing">${x.ing.map(([n, a]) => `<li><span>${esc(n)}</span><b>${a * batches}×</b></li>`).join("")}</ul>
+      <h2>Składniki (${batches} × gotowanie) i Twoje ceny</h2><ul class="ing">${x.ing.map(([n, a]) => `<li><span>${esc(n)}</span><span class="pr"><input type="number" min="0" data-price="${esc(n)}" value="${prices[n] || ""}" placeholder="$/szt." aria-label="Cena: ${esc(n)}"><b>${a * batches}×</b></span></li>`).join("")}
+        <li><span>Sprzedaż porcji</span><span class="pr"><input type="number" min="0" data-price="${esc("danie:" + x.n)}" value="${prices["danie:" + x.n] || ""}" placeholder="$/porcja" aria-label="Cena porcji"></span></li></ul>
+      ${(() => { const c = recipeCost(x), p = recipeProfit(x); return c === null ? `<p class="src">Wpisz ceny składników, a policzę koszt i zysk.</p>` : `<ul class="ing"><li><span>Koszt składników</span><b>${U.money(c * batches)}</b></li>${p !== null ? `<li><span>Zysk (${batches * x.out} porcji)</span><b class="${p >= 0 ? "pos" : "neg"}">${U.money(p * batches)}</b></li><li><span>Zysk na godzinę gotowania</span><b>${U.money(p / (x.min / 60))}</b></li>` : ""}</ul>`; })()}
       ${x.how.length ? `<h2>Jak</h2><div class="how">${x.how.map((h) => `<span>${HOW[h] || esc(h)}</span>`).join("")}</div>` : ""}
       <p class="src">Łączny czas: ${hrs(x.min * batches)}, wyjdzie ${batches * x.out} porcji.</p>`;
   } else {
@@ -102,6 +116,7 @@ function renderDetail() {
   }
 }
 $("#list").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) { sel = +b.dataset.id; qty = 1; render(); } });
+$("#detail").addEventListener("change", (e) => { const k = e.target.dataset.price; if (k === undefined) return; prices[k] = Math.max(0, +e.target.value || 0); U.save(PKEY, prices); render(); });
 $("#detail").addEventListener("input", (e) => { if (e.target.id === "qty") { qty = Math.max(1, Math.min(9999, Math.round(+e.target.value || 1))); const pos = e.target.selectionStart; renderDetail(); const n = $("#qty"); n.focus(); try { n.setSelectionRange(pos, pos); } catch {} } });
 document.querySelector(".tabs-row").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (!b) return; tab = b.dataset.tab; sel = null; document.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("on", x === b)); filters(); render(); });
 ["q", "filter"].forEach((id) => $("#" + id).addEventListener("input", render));

@@ -873,6 +873,8 @@ function contactsHtml(m) {
   return `<div class="linked">${here.map((c) => `<button data-contact="${c.id}" title="Otwórz kontakt">${ico("me")}${esc(c.name)}</button>`).join("")}</div>`;
 }
 Host.onPayload((p) => {
+  if (Array.isArray(p.goto)) { const ll = toLL(p.goto[0], p.goto[1]); fly(ll, 4); L.popup({ className: "cd-pop" }).setLatLng(ll).setContent(`<b>${esc(p.label || "Miejsce")}</b>`).openOn(map); return; }
+  if (p.crewStore) { if (crew) crewSend({ op: "store", items: p.crewStore, by: crewNick() }); return; }
   if (p.crewTimer) { if (!crew) return toast("Najpierw połącz się z mapą ekipy (Mapa → Mapa ekipy na żywo)"); crewSend({ op: "timer", name: String(p.crewTimer.name).slice(0, 40), min: Math.min(1440, +p.crewTimer.min || 0), by: crewNick() }); return; }
   if (p.select) { const m = state && state.markers.find((x) => x.id === p.select); if (m) select(m.id, true); else toast("Tego znacznika już nie ma na mapie"); }
 });
@@ -888,6 +890,9 @@ const WIKI = {
   airdrop: { name: "Zrzuty zaopatrzenia", color: "#7fd1ff" },
   "game-zones": { name: "Strefy gry", color: "#2fd4d4" },
   "dmv-cameras": { name: "Fotoradary", color: "#ff8a3d" },
+  atm: { name: "Bankomaty", color: "#22c55e" },
+  biz: { name: "Biznesy do kupienia", color: "#eab308" },
+  realty: { name: "Nieruchomości", color: "#60a5fa" },
 };
 const wikiGroups = {};
 let wikiData = null;
@@ -965,6 +970,17 @@ $("#wiki-layers").addEventListener("click", (e) => {
 async function loadWiki() {
   if (!Host.available) return renderWikiPanel();
   try { const raw = await Host.call("wiki_layers"); wikiData = raw ? JSON.parse(raw) : null; } catch { wikiData = null; }
+  // bankomaty, biznesy i nieruchomości z list wiki (mają pozycję na mapie)
+  try {
+    const [biz, re] = await Promise.all([Host.call("wiki_list", "businesses"), Host.call("wiki_list", "realties")]);
+    const $$ = (n) => "$" + Math.round(n).toLocaleString("pl-PL");
+    const pt = (x, n) => (Array.isArray(x.mapPosition) ? { t: "p", c: x.mapPosition, n } : null);
+    const RT = { house: "Dom", apartment: "Mieszkanie", office: "Biuro", warehouse: "Magazyn" };
+    wikiData ||= { layers: {} };
+    wikiData.layers.atm = (biz?.items || []).filter((b) => b.type === "atm").map((b) => pt(b, `${b.name}${b.buyPrice ? " · " + $$(b.buyPrice) : ""}`)).filter(Boolean);
+    wikiData.layers.biz = (biz?.items || []).filter((b) => b.type !== "atm").map((b) => pt(b, `${b.name || b.slug}${b.buyPrice ? " · " + $$(b.buyPrice) : ""}`)).filter(Boolean);
+    wikiData.layers.realty = (re?.items || []).map((r) => pt(r, `${RT[r.type] || r.type} #${r.serial}${r.price ? " · " + $$(r.price) : ""}${r.garageSlots ? " · garaż " + r.garageSlots : ""}`)).filter(Boolean);
+  } catch {}
   Object.keys(wikiGroups).forEach((k) => { map.removeLayer(wikiGroups[k]); delete wikiGroups[k]; });
   renderWikiPanel();
   (state.wikiOn || []).forEach((s) => setWikiVisible(s, true));
@@ -1283,6 +1299,9 @@ function crewApply(ev) {
   if (!ev || ev.from === crewId) return;
   if (ev.op === "hello") { crewPing(); return crewSnapshot(); }
   if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20) }; return renderCrewPeople(); }
+  if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
+  if (ev.op === "pin" && Number.isFinite(ev.x) && Number.isFinite(ev.y)) return showCrewPin(ev);
+  if (ev.op === "store" && Array.isArray(ev.items)) { window.parent.postMessage({ __toEkipa: { store: ev.items.slice(0, 200), by: ev.by } }, "*"); return; }
   if (ev.op === "timer" && ev.min > 0) { window.parent.postMessage({ __toTimers: { name: ev.name, min: ev.min, by: ev.by } }, "*"); return toast(`${ev.by || "Ekipa"} ustawił minutnik: ${ev.name}`); }
   const list = ev.op === "put" ? [ev.m] : ev.op === "snap" ? ev.ms || [] : [];
   let changed = false;
@@ -1326,7 +1345,7 @@ async function crewConnect(code, nick) {
   U.save(CREW_KEY, { code, nick });
   crew.es = new EventSource(`https://ntfy.sh/${topic}/sse?since=12h`);
   crew.es.onmessage = async (e) => { try { const d = JSON.parse(e.data); if (d.event === "message") crewApply(await crewOpen(d.message)); } catch {} };
-  crew.es.onopen = () => { renderCrew("on"); renderCrewPeople(); crewPing(); };
+  crew.es.onopen = () => { renderCrew("on"); renderCrewPeople(); renderCrewChat(); crewPing(); };
   crew.es.onerror = () => renderCrew("err");
   crewSend({ op: "hello", by: nick });
   crewSnapshot();
@@ -1349,12 +1368,30 @@ function renderCrewPeople() {
   el.innerHTML = list.length ? list.map(([n, v]) => `<li class="${v.on ? "on" : ""}"><i></i><span>${esc(n)}</span><small>${v.on ? "10-8 · " + esc(v.srv || "w grze") : "10-7 · poza grą"}</small></li>`).join("") : `<li class="none">Nikt inny nie jest teraz połączony.</li>`;
 }
 setInterval(renderCrewPeople, 30000);
+/* czat ekipy i pinezka „tu jestem” (widoczna 10 minut) */
+let crewChat = [];
+const crewPins = L.layerGroup().addTo(map);
+function renderCrewChat() {
+  const el = document.getElementById("crew-chat"); if (!el) return;
+  el.innerHTML = crewChat.map((m) => `<li><b>${esc(m.by)}</b> <span>${esc(m.t)}</span></li>`).join("") || `<li class="none">Brak wiadomości. Napisz coś do ekipy.</li>`;
+  el.scrollTop = el.scrollHeight;
+}
+function showCrewPin(ev) {
+  const ll = toLL(ev.x, ev.y), by = String(ev.by || "Ekipa").slice(0, 24);
+  const m = L.marker(ll, { icon: L.divIcon({ className: "", iconSize: [26, 26], html: `<div class="crew-pin"><i></i></div>` }), keyboard: false })
+    .bindTooltip(`${esc(by)} jest tutaj`, { permanent: true, direction: "top", className: "mk-tip", offset: [0, -12] }).addTo(crewPins);
+  setTimeout(() => crewPins.removeLayer(m), 10 * 60000);
+  toast(`${by} pokazuje, gdzie jest`);
+}
 function renderCrew(st) {
   const s = U.load(CREW_KEY, {});
   $("#crew-box").innerHTML = crew
     ? `<p class="crew-st ${st}"><i></i>${st === "on" ? "Połączono z mapą ekipy" : st === "err" ? "Brak połączenia, ponawiam…" : "Łączenie…"}</p>
        <small>Twoje znaczniki widzi każdy z tym samym kodem. Szyfrowane kodem ekipy.</small>
        <ul class="crew-people" id="crew-people"></ul>
+       <button class="link" id="crew-pin-btn" type="button">Pokaż ekipie, gdzie jestem (10 min)</button>
+       <ul class="crew-chat" id="crew-chat" aria-live="polite"></ul>
+       <form id="crew-say" class="crew-say" autocomplete="off"><input name="t" maxlength="300" placeholder="Wiadomość do ekipy…" aria-label="Wiadomość do ekipy"><button class="copy-btn">Wyślij</button></form>
        <button class="link" id="crew-off">Rozłącz</button>`
     : `<form id="crew-form" class="crew-form" autocomplete="off">
          <input name="code" type="password" placeholder="Wspólny kod ekipy (min. 8 znaków)" aria-label="Kod ekipy" value="">
@@ -1364,11 +1401,24 @@ function renderCrew(st) {
 }
 $("#crew-box").addEventListener("submit", (e) => {
   e.preventDefault();
+  if (e.target.id === "crew-say") {
+    const t = e.target.t.value.trim(); if (!t || !crew) return;
+    crewSend({ op: "chat", t, by: crewNick() });
+    crewChat.push({ by: "Ty", t, at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat();
+    e.target.t.value = ""; return;
+  }
   const code = e.target.code.value.trim(), nick = e.target.nick.value.trim();
   if (code.length < 8) return toast("Kod ekipy musi mieć co najmniej 8 znaków");
   crewConnect(code, nick);
 });
-$("#crew-box").addEventListener("click", (e) => { if (e.target.id === "crew-off") crewDisconnect(); });
+$("#crew-box").addEventListener("click", (e) => {
+  if (e.target.id === "crew-off") crewDisconnect();
+  if (e.target.id === "crew-pin-btn") {
+    if (!state.me) return toast("Najpierw zaznacz, gdzie jesteś: przycisk „Tu jestem” albo klawisz H");
+    crewSend({ op: "pin", x: state.me.x, y: state.me.y, by: crewNick() });
+    toast("Ekipa widzi teraz Twoją pozycję przez 10 minut");
+  }
+});
 { const s = U.load(CREW_KEY, {}); renderCrew("off"); if (s.code) { const go = () => (state ? crewConnect(s.code, s.nick || "") : setTimeout(go, 300)); go(); } }
 
 /* ---------- mapa cieplna: gdzie najczęściej masz własne znaczniki, zrzuty i wpisy w dzienniku ---------- */
