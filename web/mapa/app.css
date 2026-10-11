@@ -366,3 +366,16 @@ body.collapsed #inbox{left:14px;width:min(560px,calc(100% - 28px))}
 .crew-st i{width:8px;height:8px;border-radius:50%;background:#64748b}
 .crew-st.on i{background:var(--good,#22c55e);box-shadow:0 0 0 3px rgba(34,197,94,.25)}
 .crew-st.err i{background:var(--danger,#ef4444)}
+
+.crew-people{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:3px}
+.crew-people li{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:13px}
+.crew-people li i{width:7px;height:7px;border-radius:50%;background:#64748b}
+.crew-people li.on i{background:var(--good,#22c55e)}
+.crew-people small{color:var(--text-3)}
+.crew-people .none{display:block;color:var(--text-3);font-size:12.5px}
+
+/* pomiar i mapa cieplna */
+.tools-ctl{display:grid;gap:6px;margin-bottom:8px!important}
+.tools-ctl button{display:grid;place-items:center;width:38px;height:38px;border-radius:6px;background:var(--panel);border:1px solid var(--line-2);color:var(--text);cursor:pointer;box-shadow:var(--shadow)}
+.tools-ctl button:hover{color:var(--accent)}
+.tools-ctl button[aria-pressed=true]{background:#ef4444;color:#fff;border-color:#ef4444}

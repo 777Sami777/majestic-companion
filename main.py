@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.2.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -69,6 +69,7 @@ SETTINGS_FILE = os.path.join(DATA_DIR, "ustawienia.json")
 WIKI_FILE = os.path.join(DATA_DIR, "warstwy_wiki.json")
 TERR_FILE = os.path.join(DATA_DIR, "historia_terytoriow.json")
 VEH_FILE = os.path.join(DATA_DIR, "pojazdy.json")
+CRAFT_FILE = os.path.join(DATA_DIR, "crafting.json")
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 WIKI_LAYERS = ["captures", "treasure", "stash", "gatherer", "mushroomer", "animal", "airdrop", "game-zones", "dmv-cameras"]
 
@@ -287,12 +288,26 @@ class Api:
             return False
         self._overlay = not getattr(self, "_overlay", False)
         flags = 0x0001 | 0x0002 | 0x0010  # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+        compact = load_settings().get("compactOverlay")
+        GWL_EXSTYLE, WS_EX_LAYERED = -20, 0x80000
+        user32.GetWindowLongW.restype = ctypes.c_long
         if self._overlay:
             user32.ShowWindowAsync(hwnd, 9)  # SW_RESTORE
+            if compact:
+                self._before_compact = self.win_rect()
+                sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+                user32.MoveWindow(hwnd, sw - 600, 40, 580, sh - 120, True)
+                user32.SetWindowLongW(hwnd, GWL_EXSTYLE, user32.GetWindowLongW(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED)
+                user32.SetLayeredWindowAttributes(hwnd, 0, 232, 0x2)  # LWA_ALPHA: lekko przezroczyste nad grą
             user32.SetWindowPos(hwnd, wintypes.HWND(-1), 0, 0, 0, 0, flags)  # HWND_TOPMOST
             user32.SetForegroundWindow(hwnd)
         else:
             user32.SetWindowPos(hwnd, wintypes.HWND(-2), 0, 0, 0, 0, flags)  # HWND_NOTOPMOST
+            if getattr(self, "_before_compact", None):
+                x, y, w, h = self._before_compact
+                self._before_compact = None
+                user32.SetWindowLongW(hwnd, GWL_EXSTYLE, user32.GetWindowLongW(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED)
+                user32.MoveWindow(hwnd, x, y, w, h, True)
             user32.ShowWindowAsync(hwnd, 6)  # SW_MINIMIZE
         return self._overlay
 
@@ -489,6 +504,37 @@ class Api:
         save_json(VEH_FILE, out)
         return {"ok": True, "count": len(out["items"])}
 
+    def crafting(self):
+        """Przepisy kuchenne i crafting frakcji: pobrane z wiki albo dołączone do aplikacji."""
+        for path in (CRAFT_FILE, resource("crafting.json")):
+            data = load_json(path, None)
+            if data:
+                return data
+        return None
+
+    def crafting_sync(self):
+        script = open(resource("wiki_crafting.js"), encoding="utf-8").read()
+        win = webview.create_window("wiki-crafting", "https://wiki.gta5majestic.com/pl/servers", hidden=True)
+        data = None
+        try:
+            for _ in range(120):
+                time.sleep(0.5)
+                try:
+                    if win.evaluate_js("!!document.body && document.readyState === 'complete' && !window.__craftStarted"):
+                        win.evaluate_js("window.__craftStarted = true;" + script)
+                    data = win.evaluate_js("window.__craft || null")
+                except Exception:
+                    data = None
+                if data:
+                    break
+        finally:
+            win.destroy()
+        if not data or data.get("error"):
+            return {"ok": False, "error": (data or {}).get("error", "brak odpowiedzi wiki")}
+        out = {"at": time.time() * 1000, "recipes": data["recipes"], "crafts": data["crafts"]}
+        save_json(CRAFT_FILE, out)
+        return {"ok": True, "recipes": len(out["recipes"]), "crafts": len(out["crafts"])}
+
     def wiki_history(self):
         return load_json(TERR_FILE, [])
 
@@ -683,7 +729,7 @@ start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 
 
 DEFAULT_SETTINGS = {"shotDirs": [], "overlayKey": "F10", "server": "PL1", "trayOnClose": True,
-                    "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True}
+                    "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True, "compactOverlay": False}
 WEBHOOK_RE = re.compile(r"^https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+$")
 VK = {f"F{i}": 0x6F + i for i in range(1, 13)}
 
@@ -730,15 +776,23 @@ def start_hotkey(api):
         if vk:
             user32.RegisterHotKey(None, 1, 0x4000, vk)  # MOD_NOREPEAT
         user32.RegisterHotKey(None, 2, 0x4000 | 0x0002 | 0x0004, 0x4E)  # Ctrl+Shift+N: szybka notatka
+        for n in (1, 2, 3):  # Ctrl+Shift+1..3: pierwsze trzy szybkie minutniki
+            user32.RegisterHotKey(None, 10 + n, 0x4000 | 0x0002 | 0x0004, 0x30 + n)
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             if msg.message == 0x0312:  # WM_HOTKEY
                 try:
-                    api.toggle_note() if msg.wParam == 2 else api.toggle_overlay()
+                    if msg.wParam == 2:
+                        api.toggle_note()
+                    elif 11 <= msg.wParam <= 13:
+                        api._window.evaluate_js(f"window.__hotTimer && window.__hotTimer({msg.wParam - 10})")
+                    else:
+                        api.toggle_overlay()
                 except Exception:
                     pass
         user32.UnregisterHotKey(None, 1)
-        user32.UnregisterHotKey(None, 2)
+        for hid in (2, 11, 12, 13):
+            user32.UnregisterHotKey(None, hid)
 
     threading.Thread(target=loop, daemon=True).start()
 
@@ -772,7 +826,7 @@ def main():
         js_api=api,
         width=1480,
         height=920,
-        min_size=(1000, 640),
+        min_size=(560, 480),
         background_color="#0a1424",
         frameless=True,  # własny pasek MDT zamiast białej belki Windows
         easy_drag=False,

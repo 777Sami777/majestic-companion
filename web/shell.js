@@ -2,7 +2,7 @@
 "use strict";
 const $ = (s) => document.querySelector(s);
 const api = () => (window.pywebview && window.pywebview.api) || null;
-const MODS = ["dzis", "mapa", "kontakty", "sesje", "minutniki", "zarobki", "pojazdy", "rp", "ekipa", "ustawienia"];
+const MODS = ["dzis", "mapa", "kontakty", "sesje", "minutniki", "zarobki", "pojazdy", "crafting", "rp", "ekipa", "ustawienia"];
 const frames = Object.fromEntries(MODS.map((m) => [m, $("#f-" + m)]));
 let current = "dzis";
 let game = { running: false, session: null };
@@ -25,6 +25,8 @@ window.addEventListener("message", async (e) => {
   if (m.__key) handleKey(m.__key);
   if (m.__look) broadcast({ __look: true });
   if (m.__reloadAll) location.reload();
+  if (m.__toMap) frames.mapa.contentWindow?.postMessage({ __payload: m.__toMap }, "*");
+  if (m.__toTimers) frames.minutniki.contentWindow?.postMessage({ __payload: { add: m.__toTimers } }, "*");
   if (m.__reload) Object.entries(frames).forEach(([k, f]) => { if (f.src && (m.__reload === true || m.__reload === k)) f.contentWindow.location.reload(); });
 });
 
@@ -41,7 +43,7 @@ function moveGlider() {
   g.style.height = on.offsetHeight + "px";
   g.style.transform = `translateY(${on.offsetTop}px)`;
 }
-const NAMES = { dzis: "Dziś", mapa: "Mapa", kontakty: "Kontakty", sesje: "Statystyki gry", minutniki: "Minutniki", zarobki: "Zarobki", pojazdy: "Pojazdy", rp: "Teksty RP", ekipa: "Ekipa", ustawienia: "Ustawienia" };
+const NAMES = { dzis: "Dziś", mapa: "Mapa", kontakty: "Kontakty", sesje: "Statystyki gry", minutniki: "Minutniki", zarobki: "Zarobki", pojazdy: "Pojazdy", crafting: "Crafting", rp: "Teksty RP", ekipa: "Ekipa", ustawienia: "Ustawienia" };
 function setCallsign(mod) {
   $("#cs-code").textContent = "MDT-" + String(MODS.indexOf(mod) + 1).padStart(2, "0");
   $("#cs-name").textContent = NAMES[mod] || mod;
@@ -259,6 +261,13 @@ document.querySelectorAll("[data-rz]").forEach((h) => h.addEventListener("pointe
   const up = () => { h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); setTimeout(moveGlider, 50); };
   h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
 }));
+
+/* ---------- Ctrl+Shift+1..3 z Pythona (działa też w grze) ---------- */
+window.__hotTimer = (n) => {
+  frames.minutniki.contentWindow?.postMessage({ __payload: { preset: n } }, "*");
+  const names = ["PayDay", "Grzyby / zbieractwo", "Łowienie ryb"];
+  api()?.notify("Minutnik wystartował", names[n - 1] || "Minutnik");
+};
 
 /* ---------- raport tygodnia (niedziela wieczór) i cele tygodniowe ---------- */
 const weekStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() - ((d.getDay() + 6) % 7) * 86400000; };

@@ -39,6 +39,7 @@
 
   <section class="panel rise" style="--d:1"><h2>Gra</h2>
     <div class="row"><div class="txt"><b>Serwer Majestic</b><small>Dla tego serwera pobierane są terytoria gangów z wiki.</small></div><select id="server"></select></div>
+    <div class="row"><div class="txt"><b>Kompaktowa nakładka</b><small>Po wciśnięciu klawisza nakładki okno staje się wąskim, lekko przezroczystym panelem przy prawej krawędzi ekranu. Szybkie minutniki: Ctrl+Shift+1, 2, 3.</small></div><label class="tog"><input type="checkbox" id="compact"><i></i></label></div>
     <div class="row"><div class="txt"><b>Nakładka nad grą</b><small>Klawisz pokazuje aplikację nad grą i chowa ją z powrotem. Gra musi działać w trybie okna bez ramki (Borderless).</small></div><select id="overlay"></select></div>
   </section>
 
@@ -83,7 +84,7 @@
 
   <section class="panel rise" style="--d:4"><h2>Skróty</h2>
     <div class="keys">
-      <kbd>Ctrl 1–0</kbd><span>Przełączanie zakładek (0 = Ustawienia)</span>
+      <kbd>Ctrl 1–0</kbd><span>Przełączanie zakładek (0 = Ekipa)</span>
       <kbd>Ctrl Space</kbd><span>Szukaj w całej aplikacji</span>
       <kbd>Ctrl Shift N</kbd><span>Szybka notatka (działa też w grze)</span>
       <kbd>R / Z</kbd><span>Mapa: rysuj trasę / strefę (Enter kończy, Backspace cofa)</span><kbd>F11</kbd><span>Pełny ekran</span>
@@ -193,10 +194,12 @@ async function loadRun() {
   if (!Host.available) return;
   $("#autostart").checked = await Host.call("get_autostart");
   $("#tray").checked = st ? st.trayOnClose !== false : true;
+  $("#compact").checked = !!(st && st.compactOverlay);
   $("#ver").textContent = "Majestic Companion " + await Host.call("app_version");
 }
 $("#autostart").addEventListener("change", async (e) => { e.target.checked = await Host.call("set_autostart", e.target.checked); U.toast(e.target.checked ? "Aplikacja uruchomi się z Windowsem" : "Wyłączono start z Windowsem"); });
 $("#tray").addEventListener("change", (e) => set({ trayOnClose: e.target.checked }));
+$("#compact").addEventListener("change", (e) => set({ compactOverlay: e.target.checked }));
 $("#upd").addEventListener("click", async () => {
   const r = await Host.call("check_update");
   if (!r) return say("Nie udało się sprawdzić aktualizacji: repozytorium jest prywatne albo nie ma internetu.");

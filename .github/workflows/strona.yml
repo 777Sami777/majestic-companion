@@ -1,0 +1,46 @@
+name: Strona z graczami online
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/strona.yml"]
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pobierz liczbę graczy z publicznego API Majestic
+        run: |
+          curl -sf --max-time 20 https://api.majestic-files.com/meta/servers -o raw.json || echo '{}' > raw.json
+          python3 - <<'PY'
+          import json, time
+          try:
+              servers = json.load(open("raw.json"))["result"]["servers"]
+          except Exception:
+              servers = []
+          out = {"at": int(time.time() * 1000), "servers": [
+              {k: s.get(k) for k in ("id", "name", "players", "queuedPlayers", "techWorks", "status")}
+              for s in servers if s.get("region") == "eu"]}
+          json.dump(out, open("docs/serwery.json", "w"), ensure_ascii=False)
+          PY
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4

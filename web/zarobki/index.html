@@ -39,6 +39,17 @@
 .log button:hover{background:rgba(255,90,106,.12);color:#ff8a96}
 .two{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
 .hint{margin:0 0 14px;color:var(--text-2);font-size:13.5px}
+.ch{display:grid;grid-template-columns:repeat(14,1fr);gap:6px;height:170px}
+.ch-col{display:grid;grid-template-rows:1fr 40px auto;gap:2px}
+.ch-up,.ch-dn{display:flex;justify-content:center}
+.ch-up{align-items:flex-end}.ch-dn{align-items:flex-start}
+.ch-up i,.ch-dn i{display:block;width:70%;max-width:28px;border-radius:2px;min-height:1px}
+.ch-up i{background:var(--good)}.ch-dn i{background:var(--bad);opacity:.85}
+.ch-col span{text-align:center;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ch-col span.now{color:var(--text);font-weight:700}
+.ch-leg{display:flex;gap:14px;align-items:center;margin:8px 0 0;font-size:12.5px;color:var(--text-3)}
+.ch-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:-8px}
+.ch-leg .g{background:var(--good)}.ch-leg .r{background:var(--bad)}
 .craft{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start}
 .craft-list ul{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:4px}
 .craft-list li button{width:100%;text-align:left;padding:8px 10px;border-radius:4px;background:var(--card);border:1px solid var(--line)}
@@ -118,12 +129,25 @@ function render() {
       <div class="stat neg rise" style="--d:4"><label>Wydatki w tym tygodniu</label><b>${money(spentWeek)}</b><small>paliwo, naprawy, mandaty…</small></div>
       <div class="stat rise" style="--d:5"><label>Średnio na godzinę</label><b>${mins ? money(gross / (mins / 60)) : "—"}</b><small>razem na czysto: ${money(total)}</small></div>
     </div>
+    ${chartHtml()}
     <div class="two">
       <section class="panel rise" style="--d:6"><h2>Najbardziej opłacalne ($ / godz.)</h2>
         <div class="jobs">${jobs.map((j, i) => `<div class="job"><span class="name">${esc(j.job)}</span><span class="bar"><i style="width:${(j.rate / maxRate) * 100}%;--i:${i}"></i></span><span class="rate">${money(j.rate)}</span><span class="tot">${money(j.amt)} · ${j.n}×</span></div>`).join("") || `<p class="empty">Podawaj czas pracy, żeby policzyć stawkę.</p>`}</div></section>
       <section class="panel rise" style="--d:7"><h2>Ostatnie wpisy</h2>
         <ul class="log">${log.slice().sort((a, b) => b.at - a.at).slice(0, 40).map((l, i) => `<li style="--i:${Math.min(i, 15)}"><time>${new Date(l.at).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}</time><span>${esc(l.job)}${l.qty ? ` <small class="qty">${l.qty} szt. × ${money(l.price)}</small>` : ""}</span><span class="amt ${l.amt < 0 ? "neg" : ""}">${money(l.amt)}</span><span class="min">${l.min ? l.min + " min" : "—"}</span><button data-del="${l.id}" title="Usuń wpis"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join("")}</ul></section>
     </div>`;
+}
+/* wykres 14 dni: słupek zarobku w górę, wydatków w dół */
+function chartHtml() {
+  const today = dayStart(Date.now()), days = Array.from({ length: 14 }, (_, i) => today - (13 - i) * DAY);
+  const earn = days.map((d) => log.filter((l) => l.kind !== "exp" && dayStart(l.at) === d).reduce((a, l) => a + l.amt, 0));
+  const spent = days.map((d) => -log.filter((l) => l.kind === "exp" && dayStart(l.at) === d).reduce((a, l) => a + l.amt, 0));
+  const max = Math.max(1, ...earn, ...spent);
+  return `<section class="panel rise" style="--d:5;margin-bottom:14px"><h2>Ostatnie 14 dni <span>na czysto ${money(earn.reduce((a, b) => a + b, 0) - spent.reduce((a, b) => a + b, 0))}</span></h2>
+    <div class="ch" role="img" aria-label="Zarobki i wydatki z ostatnich 14 dni">${days.map((d, i) => `<div class="ch-col" title="${new Date(d).toLocaleDateString("pl-PL")}: +${money(earn[i])} / −${money(spent[i])}">
+      <div class="ch-up"><i style="height:${(earn[i] / max) * 100}%"></i></div><div class="ch-dn"><i style="height:${(spent[i] / max) * 100}%"></i></div>
+      <span class="${d === today ? "now" : ""}">${new Date(d).getDate()}</span></div>`).join("")}</div>
+    <p class="ch-leg"><i class="g"></i>zarobek <i class="r"></i>wydatki</p></section>`;
 }
 /* tryby formularza: zarobek, licznik sztuk, wydatek */
 const MODE_TXT = { earn: ["Praca", "Zarobek ($)", "np. Górnik", "jobs"], count: ["Praca", "Zarobek ($)", "np. Zbieractwo: kraby", "jobs"], exp: ["Na co", "Kwota ($)", "np. Paliwo", "cats"] };

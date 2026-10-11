@@ -873,6 +873,7 @@ function contactsHtml(m) {
   return `<div class="linked">${here.map((c) => `<button data-contact="${c.id}" title="Otwórz kontakt">${ico("me")}${esc(c.name)}</button>`).join("")}</div>`;
 }
 Host.onPayload((p) => {
+  if (p.crewTimer) { if (!crew) return toast("Najpierw połącz się z mapą ekipy (Mapa → Mapa ekipy na żywo)"); crewSend({ op: "timer", name: String(p.crewTimer.name).slice(0, 40), min: Math.min(1440, +p.crewTimer.min || 0), by: crewNick() }); return; }
   if (p.select) { const m = state && state.markers.find((x) => x.id === p.select); if (m) select(m.id, true); else toast("Tego znacznika już nie ma na mapie"); }
 });
 
@@ -904,7 +905,9 @@ function buildWikiLayer(slug, items) {
     const label = it.n ? esc(plName(it.n)) : cfg.name;
     if (it.t === "cell") {
       const [x, y, h] = it.c;
-      const col = it.oc || "#ffffff";
+      // wybrana „moja rodzina”: swoje pola zielone, cudze czerwone, wolne szare
+      const fam = state.myFam ? (String(it.o) === String(state.myFam) ? "#22c55e" : it.o ? "#ef4444" : "#94a3b8") : null;
+      const col = fam || it.oc || "#ffffff";
       L.rectangle([[y - h, x - h], [y + h, x + h]], { renderer: wikiRenderer, color: col, weight: 0.6, opacity: it.o ? 0.5 : 0.15,
         fillColor: col, fillOpacity: it.o ? 0.28 : 0.03 })
         .bindTooltip(`${it.n ? label + " · " : ""}${it.o ? "Rodzina #" + it.o : "Wolne pole"}`, { className: "mk-tip", sticky: true }).addTo(g);
@@ -929,7 +932,7 @@ function renderWikiPanel() {
       <div class="cat-row"><span class="cat-open"><span class="cat-dot">${ico(slug === "dmv-cameras" ? "camera" : "flag")}</span>
       <span class="cat-name">${cfg.name}</span><span class="cat-count">${n || "–"}</span></span>
       <button class="switch" role="switch" aria-checked="${isOn}" ${n ? "" : "disabled"} title="${n ? "Pokaż lub ukryj" : "Najpierw kliknij Aktualizuj"}"></button></div></li>`;
-  }).join("") + capFilterHtml() + (typeof terrChangesHtml === "function" ? terrChangesHtml() : "") + gathFilterHtml();
+  }).join("") + capFilterHtml() + (typeof myFamHtml === "function" ? myFamHtml() : "") + (typeof terrChangesHtml === "function" ? terrChangesHtml() : "") + gathFilterHtml();
   $("#wiki-meta").textContent = !Host.available ? "Warstwy z wiki działają w aplikacji Majestic Companion."
     : wikiData ? `Serwer ${wikiData.server} · pobrano ${new Date(wikiData.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
     : "Kliknij Aktualizuj, żeby pobrać warstwy (ok. 30 s, potrzebny internet).";
@@ -1278,7 +1281,9 @@ async function crewOpen(msg) {
 }
 function crewApply(ev) {
   if (!ev || ev.from === crewId) return;
-  if (ev.op === "hello") return crewSnapshot();
+  if (ev.op === "hello") { crewPing(); return crewSnapshot(); }
+  if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20) }; return renderCrewPeople(); }
+  if (ev.op === "timer" && ev.min > 0) { window.parent.postMessage({ __toTimers: { name: ev.name, min: ev.min, by: ev.by } }, "*"); return toast(`${ev.by || "Ekipa"} ustawił minutnik: ${ev.name}`); }
   const list = ev.op === "put" ? [ev.m] : ev.op === "snap" ? ev.ms || [] : [];
   let changed = false;
   for (const raw of list) {
@@ -1321,7 +1326,7 @@ async function crewConnect(code, nick) {
   U.save(CREW_KEY, { code, nick });
   crew.es = new EventSource(`https://ntfy.sh/${topic}/sse?since=12h`);
   crew.es.onmessage = async (e) => { try { const d = JSON.parse(e.data); if (d.event === "message") crewApply(await crewOpen(d.message)); } catch {} };
-  crew.es.onopen = () => renderCrew("on");
+  crew.es.onopen = () => { renderCrew("on"); renderCrewPeople(); crewPing(); };
   crew.es.onerror = () => renderCrew("err");
   crewSend({ op: "hello", by: nick });
   crewSnapshot();
@@ -1332,11 +1337,24 @@ function crewDisconnect(silent) {
   crew = null;
   if (!silent) { U.save(CREW_KEY, { nick: U.load(CREW_KEY, {}).nick }); renderCrew("off"); }
 }
+/* obecność: co minutę każdy wysyła swój status gry (10-8 w grze / 10-7 poza) */
+const crewSeen = {};
+let crewGame = { running: false };
+Host.onGame((g) => { const was = crewGame.running; crewGame = g; if (crew && was !== g.running) crewPing(); });
+function crewPing() { if (crew) crewSend({ op: "ping", by: crewNick(), on: !!crewGame.running, srv: crewGame.session?.server || "" }); }
+setInterval(crewPing, 60000);
+function renderCrewPeople() {
+  const el = document.getElementById("crew-people"); if (!el) return;
+  const now = Date.now(), list = Object.entries(crewSeen).filter(([, v]) => now - v.t < 180000).sort((a, b) => b[1].on - a[1].on);
+  el.innerHTML = list.length ? list.map(([n, v]) => `<li class="${v.on ? "on" : ""}"><i></i><span>${esc(n)}</span><small>${v.on ? "10-8 · " + esc(v.srv || "w grze") : "10-7 · poza grą"}</small></li>`).join("") : `<li class="none">Nikt inny nie jest teraz połączony.</li>`;
+}
+setInterval(renderCrewPeople, 30000);
 function renderCrew(st) {
   const s = U.load(CREW_KEY, {});
   $("#crew-box").innerHTML = crew
     ? `<p class="crew-st ${st}"><i></i>${st === "on" ? "Połączono z mapą ekipy" : st === "err" ? "Brak połączenia, ponawiam…" : "Łączenie…"}</p>
        <small>Twoje znaczniki widzi każdy z tym samym kodem. Szyfrowane kodem ekipy.</small>
+       <ul class="crew-people" id="crew-people"></ul>
        <button class="link" id="crew-off">Rozłącz</button>`
     : `<form id="crew-form" class="crew-form" autocomplete="off">
          <input name="code" type="password" placeholder="Wspólny kod ekipy (min. 8 znaków)" aria-label="Kod ekipy" value="">
@@ -1352,6 +1370,84 @@ $("#crew-box").addEventListener("submit", (e) => {
 });
 $("#crew-box").addEventListener("click", (e) => { if (e.target.id === "crew-off") crewDisconnect(); });
 { const s = U.load(CREW_KEY, {}); renderCrew("off"); if (s.code) { const go = () => (state ? crewConnect(s.code, s.nick || "") : setTimeout(go, 300)); go(); } }
+
+/* ---------- mapa cieplna: gdzie najczęściej masz własne znaczniki, zrzuty i wpisy w dzienniku ---------- */
+const heatLayer = L.layerGroup();
+function buildHeat() {
+  heatLayer.clearLayers();
+  for (const m of state.markers || []) {
+    if (m.builtin) continue;
+    const w = 1 + (m.shots?.length || 0) + (m.log?.length || 0);  // waga: aktywność przy miejscu
+    L.circle(toLL(m.x, m.y), { renderer: wikiRenderer, radius: 220 + w * 90, stroke: false, fillColor: "#ef4444", fillOpacity: Math.min(0.45, 0.1 + w * 0.05), interactive: false }).addTo(heatLayer);
+  }
+}
+/* ---------- pomiar odległości (M): dwa kliknięcia ---------- */
+let measure = null;
+const measureLayer = L.layerGroup().addTo(map);
+function startMeasure() {
+  if (drawing) return;
+  measure = { pts: [] };
+  measureLayer.clearLayers();
+  $("#placing-hint .ph-text").textContent = "Kliknij punkt startu, potem cel. Esc anuluje";
+  $("#placing-hint").hidden = false;
+  map.getContainer().classList.add("placing");
+}
+function endMeasure() {
+  measure = null;
+  $("#placing-hint").hidden = true;
+  $("#placing-hint .ph-text").textContent = "Kliknij na mapie, gdzie postawić znacznik";
+  map.getContainer().classList.remove("placing");
+}
+map.on("click", (e) => {
+  if (!measure) return;
+  measure.pts.push([e.latlng.lat, e.latlng.lng]);
+  L.circleMarker(e.latlng, { radius: 5, color: "#0d0f14", weight: 2, fillColor: "#f59e0b", fillOpacity: 1 }).addTo(measureLayer);
+  if (measure.pts.length < 2) return;
+  const d = dist(measure.pts), mins = Math.max(1, Math.round((d / 1000) / 110 * 60 * 1.35));  // ~110 km/h, zakręty i ruch +35%
+  L.polyline(measure.pts, { color: "#f59e0b", weight: 3, dashArray: "6 6" }).addTo(measureLayer)
+    .bindTooltip(`${fmtDist(d)} · autem ok. ${mins} min`, { permanent: true, className: "mk-tip", direction: "center" }).openTooltip();
+  endMeasure();
+});
+document.addEventListener("keydown", (e) => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  if (e.key.toLowerCase() === "m" && !e.ctrlKey) startMeasure();
+  if (e.key === "Escape" && measure) { endMeasure(); measureLayer.clearLayers(); }
+});
+/* przyciski nad mapą: pomiar i mapa cieplna */
+const ToolsCtl = L.Control.extend({
+  options: { position: "bottomright" },
+  onAdd() {
+    const wrap = L.DomUtil.create("div", "tools-ctl");
+    wrap.innerHTML = `<button type="button" id="measure-btn" title="Zmierz odległość (M)" aria-label="Zmierz odległość"><svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg></button>
+      <button type="button" id="heat-btn" title="Mapa cieplna Twoich miejsc" aria-label="Mapa cieplna" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 3c3 4 6 6.5 6 10.5A6 6 0 0 1 6 13.5c0-2 1-3.5 2.5-5 .5 2 1.5 3 3 3.5-.5-3 0-6 .5-9z"/></svg></button>`;
+    L.DomEvent.disableClickPropagation(wrap);
+    return wrap;
+  },
+});
+new ToolsCtl().addTo(map);
+$("#measure-btn").onclick = startMeasure;
+$("#heat-btn").onclick = (e) => {
+  const on = !map.hasLayer(heatLayer);
+  if (on) { buildHeat(); heatLayer.addTo(map); if (!heatLayer.getLayers().length) toast("Dodaj własne znaczniki, żeby zobaczyć mapę cieplną"); }
+  else map.removeLayer(heatLayer);
+  e.currentTarget.setAttribute("aria-pressed", on);
+};
+
+/* ---------- moja rodzina na mapie terytoriów ---------- */
+function myFamHtml() {
+  const cells = (wikiData?.layers?.captures || []).filter((c) => c.t === "cell" && c.o);
+  if (!cells.length || !(state.wikiOn || []).includes("captures")) return "";
+  const fams = [...new Set(cells.map((c) => String(c.o)))].sort((a, b) => a - b);
+  return `<li class="cap-filter"><select id="my-fam" aria-label="Moja rodzina"><option value="">Moja rodzina: nie wybrano</option>
+    ${fams.map((f) => `<option value="${f}" ${String(state.myFam || "") === f ? "selected" : ""}>Moja rodzina: #${f}</option>`).join("")}</select></li>`;
+}
+$("#wiki-layers").addEventListener("change", (e) => {
+  if (e.target.id !== "my-fam") return;
+  state.myFam = e.target.value; save();
+  if (wikiGroups.captures) { map.removeLayer(wikiGroups.captures); delete wikiGroups.captures; }
+  setWikiVisible("captures", true);
+  toast(state.myFam ? `Twoje pola na zielono, cudze na czerwono` : "Wyłączono podświetlanie rodziny");
+});
 
 $("#me-btn").addEventListener("click", startMe);
 $("#shots-btn").addEventListener("click", () => openInbox(null));

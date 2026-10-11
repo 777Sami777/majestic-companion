@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crafting</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.tabs-row{display:flex;gap:6px;margin-bottom:14px}
+.bar{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:12px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
+.list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.list button{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:center;width:100%;padding:10px;border-radius:6px;background:var(--bg-2);border:1px solid var(--line-2);text-align:left;transition:border-color .15s,background .15s}
+.list button:hover{border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
+.list button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--bg-2))}
+.list img{width:44px;height:44px;object-fit:contain}
+.list b{display:block;font-weight:600;line-height:1.25}
+.list small{color:var(--text-3)}
+.detail{position:sticky;top:16px}
+.detail h2{margin:16px 0 8px;padding:0;background:none;border:0;color:var(--text-3)}
+.detail img{display:block;width:96px;height:96px;object-fit:contain;margin:0 auto 8px}
+.detail h3{margin:0 0 4px;font:600 20px var(--display);text-align:center}
+.detail .meta{text-align:center;color:var(--text-3);font-size:13px;margin-bottom:14px}
+.qty{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.qty input{width:110px}
+.ing{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:4px}
+.ing li{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:4px;background:var(--card)}
+.ing b{font-variant-numeric:tabular-nums}
+.how{display:flex;flex-wrap:wrap;gap:6px}
+.how span{padding:3px 8px;border-radius:3px;background:rgba(var(--fg-rgb),.07);font:600 12.5px var(--display);letter-spacing:.03em}
+.fr{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.fr span{padding:1px 6px;border-radius:3px;background:rgba(var(--fg-rgb),.07);font-size:11.5px;color:var(--text-2)}
+.mt{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.src{margin:10px 0 0;color:var(--text-3);font-size:12.5px}
+@media (max-width:1000px){.layout{grid-template-columns:1fr}.detail{position:static}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Crafting</h1><p class="sub">Przepisy kuchenne i crafting frakcji z Majestic Wiki. Wybierz przepis, wpisz ile chcesz zrobić, a dostaniesz listę składników.</p></div>
+    <button class="btn" id="sync"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg><span>Aktualizuj z wiki</span></button></div>
+  <div class="chips tabs-row rise" style="--d:1" role="tablist" aria-label="Rodzaj craftingu">
+    <button class="chip on" data-tab="kitchen" role="tab">Kuchnia</button>
+    <button class="chip" data-tab="faction" role="tab">Frakcje</button>
+  </div>
+  <div class="bar rise" style="--d:1">
+    <input type="text" id="q" placeholder="Szukaj przepisu albo składnika…" aria-label="Szukaj">
+    <select id="filter" aria-label="Filtr"></select>
+  </div>
+  <div class="layout rise" style="--d:2">
+    <ul class="list" id="list"></ul>
+    <aside class="panel detail" id="detail"><div class="empty"><b>Wybierz przepis</b>Kliknij przepis z listy.</div></aside>
+  </div>
+  <p class="src" id="src"></p>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc } = U;
+const IMG = (id) => `https://cdn.majestic-files.com/public/master/static/img/inventory/items/${id}.webp`;
+const HOW = { cutting: "Krojenie", frying: "Smażenie", boiling: "Gotowanie", baking: "Pieczenie", mixing: "Mieszanie", grilling: "Grillowanie", stewing: "Duszenie", blending: "Miksowanie", whipping: "Ubijanie" };
+const FR = { lspd: "LSPD", lscsd: "LSCSD", ems: "EMS", army: "SANG", gov: "GOV", news: "WN", fib: "FIB", ballas: "Ballas", vagos: "Vagos", families: "Families", bloods: "Bloods", marabunta: "Marabunta" };
+const MT = { green: ["#22c55e", "zielone"], blue: ["#3b82f6", "niebieskie"], red: ["#ef4444", "czerwone"], yellow: ["#eab308", "żółte"], purple: ["#a855f7", "fioletowe"] };
+let data = { recipes: [], crafts: [] }, tab = "kitchen", sel = null, qty = 1;
+const hrs = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) + " min" : ""}` : `${m} min`);
+
+function filters() {
+  $("#filter").innerHTML = tab === "kitchen"
+    ? `<option value="">Wszystkie poziomy</option>${[...new Set(data.recipes.map((r) => r.lvl))].sort((a, b) => a - b).map((l) => `<option value="${l}">Poziom gotowania ${l}</option>`).join("")}`
+    : `<option value="">Wszystkie frakcje</option>${[...new Set(data.crafts.flatMap((c) => c.fr))].map((f) => `<option value="${f}">${FR[f] || f}</option>`).join("")}`;
+}
+function items() {
+  const q = $("#q").value.trim().toLowerCase(), f = $("#filter").value;
+  if (tab === "kitchen") return data.recipes.filter((r) => (!f || String(r.lvl) === f) && (!q || (r.n + " " + r.ing.map((x) => x[0]).join(" ")).toLowerCase().includes(q)));
+  return data.crafts.filter((c) => (!f || c.fr.includes(f)) && (!q || (c.n + " " + c.d).toLowerCase().includes(q)));
+}
+function render() {
+  const list = items();
+  $("#list").innerHTML = list.map((x) => `<li><button data-id="${x.id}" class="${sel === x.id ? "on" : ""}"><img src="${IMG(x.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+    <span><b>${esc(x.n)}</b><small>${tab === "kitchen" ? `poz. ${x.lvl} · ${hrs(x.min)} · ${x.out} porcji` : `${x.mat} mat. · ${x.fr.map((f) => FR[f] || f).slice(0, 3).join(", ")}${x.fr.length > 3 ? "…" : ""}`}</small></span></button></li>`).join("")
+    || `<li class="empty"><b>Brak wyników</b>${data.recipes.length || data.crafts.length ? "Zmień wyszukiwanie albo filtr." : "Kliknij „Aktualizuj z wiki”."}</li>`;
+  renderDetail();
+}
+function renderDetail() {
+  const x = (tab === "kitchen" ? data.recipes : data.crafts).find((r) => r.id === sel);
+  if (!x) { $("#detail").innerHTML = `<div class="empty"><b>Wybierz przepis</b>Kliknij przepis z listy.</div>`; return; }
+  if (tab === "kitchen") {
+    const batches = Math.ceil(qty / Math.max(1, x.out));
+    $("#detail").innerHTML = `<img src="${IMG(x.id)}" alt=""><h3>${esc(x.n)}</h3><p class="meta">Poziom gotowania ${x.lvl} · kuchnia ${x.klvl} · ${x.out} porcji w ${hrs(x.min)}</p>
+      <label class="qty">Ile porcji? <input type="number" id="qty" min="1" value="${qty}"></label>
+      <h2>Składniki (${batches} × gotowanie)</h2><ul class="ing">${x.ing.map(([n, a]) => `<li><span>${esc(n)}</span><b>${a * batches}×</b></li>`).join("")}</ul>
+      ${x.how.length ? `<h2>Jak</h2><div class="how">${x.how.map((h) => `<span>${HOW[h] || esc(h)}</span>`).join("")}</div>` : ""}
+      <p class="src">Łączny czas: ${hrs(x.min * batches)}, wyjdzie ${batches * x.out} porcji.</p>`;
+  } else {
+    const [col, name] = MT[x.mt] || ["#94a3b8", x.mt || ""];
+    $("#detail").innerHTML = `<img src="${IMG(x.id)}" alt=""><h3>${esc(x.n)}</h3><p class="meta">${esc(x.d)}</p>
+      <label class="qty">Ile sztuk? <input type="number" id="qty" min="1" value="${qty}"></label>
+      <ul class="ing"><li><span><i class="mt" style="background:${col}"></i>Materiały ${esc(name)}</span><b>${x.mat * qty}</b></li><li><span>Waga razem</span><b>${(x.w * qty / 1000).toFixed(2).replace(".", ",")} kg</b></li></ul>
+      <h2>Frakcje</h2><div class="fr">${x.fr.map((f) => `<span>${FR[f] || esc(f)}</span>`).join("")}</div>`;
+  }
+}
+$("#list").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) { sel = +b.dataset.id; qty = 1; render(); } });
+$("#detail").addEventListener("input", (e) => { if (e.target.id === "qty") { qty = Math.max(1, Math.min(9999, Math.round(+e.target.value || 1))); const pos = e.target.selectionStart; renderDetail(); const n = $("#qty"); n.focus(); try { n.setSelectionRange(pos, pos); } catch {} } });
+document.querySelector(".tabs-row").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (!b) return; tab = b.dataset.tab; sel = null; document.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("on", x === b)); filters(); render(); });
+["q", "filter"].forEach((id) => $("#" + id).addEventListener("input", render));
+async function load() {
+  if (!Host.available) { $("#src").textContent = "Crafting działa w aplikacji Majestic Companion."; return; }
+  data = (await Host.call("crafting")) || { recipes: [], crafts: [] };
+  $("#src").textContent = data.at ? "Dane z Majestic Wiki · " + new Date(data.at).toLocaleDateString("pl-PL") : "";
+  filters(); render();
+}
+$("#sync").addEventListener("click", async (e) => {
+  const b = e.currentTarget, l = b.querySelector("span"); b.disabled = true; l.textContent = "Pobieram…";
+  try { const r = await Host.call("crafting_sync"); U.toast(r.ok ? `Pobrano ${r.recipes} przepisów i ${r.crafts} craftów` : "Nie udało się: " + r.error); if (r.ok) await load(); }
+  catch (err) { U.toast("Nie udało się pobrać: " + err.message); }
+  b.disabled = false; l.textContent = "Aktualizuj z wiki";
+});
+load();
+})();
+</script>
+</body>
+</html>

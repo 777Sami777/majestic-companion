@@ -53,7 +53,10 @@
       <section class="panel rise" style="--d:3"><h2>Grafik ekipy</h2><ul class="rows" id="events"></ul></section>
       <section class="panel rise" style="--d:3"><h2>Cele tygodnia</h2><div id="goals"></div></section>
     </div>
-    <section class="panel rise" style="--d:4"><h2>Notatki <span id="n-count"></span></h2><ul class="rows notes" id="notes"></ul></section>
+    <div class="grid">
+      <section class="panel rise" style="--d:4"><h2>Notatki <span id="n-count"></span></h2><ul class="rows notes" id="notes"></ul></section>
+      <section class="panel rise" style="--d:5"><h2>Aktualizacje i eventy Majestic</h2><ul class="rows" id="news"><li class="muted">Ładowanie…</li></ul></section>
+    </div>
   </div>
 </div>
 <script src="../bridge.js"></script>
@@ -100,8 +103,15 @@ function renderGoals() {
   $("#goals").innerHTML = row("Czas gry", h ?? 0, g.hours, (v) => v.toFixed(1).replace(".", ",") + " h") + row("Zarobek na czysto", m, g.money, money)
     + `<small class="muted">Cele zmienisz w zakładce Statystyki. Po osiągnięciu dostaniesz powiadomienie.</small>`;
 }
+function renderNews() {
+  const n = (live && live.news) || [];
+  $("#news").innerHTML = n.map((x) => { const d = new Date(x.publishedAt); const fresh = Date.now() - d < 7 * DAY;
+    return `<li><time>${d.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</time><span>${esc(x.title)}${fresh ? `<small>nowe w tym tygodniu</small>` : ""}</span><span></span></li>`; }).join("")
+    || `<li class="muted">Brak połączenia z serwerem Majestic.</li>`;
+}
 function renderSlow() {
   renderGoals();
+  renderNews();
   if (sessions) {
     const today = dayStart(Date.now()), S = sessions.filter((s) => s.connected && s.joined >= today);
     $("#k-time").textContent = dur(S.reduce((a, s) => a + s.played, 0));

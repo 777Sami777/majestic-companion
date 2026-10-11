@@ -37,7 +37,7 @@ Windows 10 lub 11 z Microsoft Edge WebView2 (jest domyślnie w Windows 11).
 
 ```bash
 pip install pywebview pillow pystray pyinstaller
-python -m PyInstaller --noconfirm --windowed --name MajesticCompanion --icon icon.ico --add-data "web;web" --add-data "wiki_extract.js;." --add-data "wiki_vehicles.js;." --add-data "warstwy_wiki.json;." --add-data "pojazdy.json;." --add-data "icon.ico;." --hidden-import pystray._win32 main.py
+python -m PyInstaller --noconfirm --windowed --name MajesticCompanion --icon icon.ico --add-data "web;web" --add-data "wiki_extract.js;." --add-data "wiki_vehicles.js;." --add-data "wiki_crafting.js;." --add-data "warstwy_wiki.json;." --add-data "pojazdy.json;." --add-data "crafting.json;." --add-data "icon.ico;." --hidden-import pystray._win32 main.py
 ```
 
 ![Zarobki](docs/kasa.jpg)
