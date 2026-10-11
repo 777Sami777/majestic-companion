@@ -2,7 +2,7 @@
 "use strict";
 const $ = (s) => document.querySelector(s);
 const api = () => (window.pywebview && window.pywebview.api) || null;
-const MODS = ["dzis", "mapa", "kontakty", "sesje", "minutniki", "zarobki", "rp", "ekipa", "ustawienia"];
+const MODS = ["dzis", "mapa", "kontakty", "sesje", "minutniki", "zarobki", "pojazdy", "rp", "ekipa", "ustawienia"];
 const frames = Object.fromEntries(MODS.map((m) => [m, $("#f-" + m)]));
 let current = "dzis";
 let game = { running: false, session: null };
@@ -24,6 +24,7 @@ window.addEventListener("message", async (e) => {
   if (m.__fullscreen) toggleFullscreen();
   if (m.__key) handleKey(m.__key);
   if (m.__look) broadcast({ __look: true });
+  if (m.__reloadAll) location.reload();
   if (m.__reload) Object.entries(frames).forEach(([k, f]) => { if (f.src && (m.__reload === true || m.__reload === k)) f.contentWindow.location.reload(); });
 });
 
@@ -40,7 +41,7 @@ function moveGlider() {
   g.style.height = on.offsetHeight + "px";
   g.style.transform = `translateY(${on.offsetTop}px)`;
 }
-const NAMES = { dzis: "Dziś", mapa: "Mapa", kontakty: "Kontakty", sesje: "Statystyki gry", minutniki: "Minutniki", zarobki: "Zarobki", rp: "Teksty RP", ekipa: "Ekipa", ustawienia: "Ustawienia" };
+const NAMES = { dzis: "Dziś", mapa: "Mapa", kontakty: "Kontakty", sesje: "Statystyki gry", minutniki: "Minutniki", zarobki: "Zarobki", pojazdy: "Pojazdy", rp: "Teksty RP", ekipa: "Ekipa", ustawienia: "Ustawienia" };
 function setCallsign(mod) {
   $("#cs-code").textContent = "MDT-" + String(MODS.indexOf(mod) + 1).padStart(2, "0");
   $("#cs-name").textContent = NAMES[mod] || mod;
@@ -77,13 +78,13 @@ $("#topbar").addEventListener("dblclick", (e) => { if (!e.target.closest("button
 
 function handleKey(k) {
   if (k === "F11") toggleFullscreen();
-  const n = /^ctrl\+([1-9])$/.exec(k);
-  if (n) show(MODS[+n[1] - 1]);
+  const n = /^ctrl\+([0-9])$/.exec(k);
+  if (n) show(MODS[(+n[1] || 10) - 1]);
   if (k === "ctrl+space") openSearch();
 }
 document.addEventListener("keydown", (e) => {
   if (e.key === "F11") { e.preventDefault(); handleKey("F11"); }
-  if (e.ctrlKey && /^[1-9]$/.test(e.key)) { e.preventDefault(); handleKey("ctrl+" + e.key); }
+  if (e.ctrlKey && /^[0-9]$/.test(e.key)) { e.preventDefault(); handleKey("ctrl+" + e.key); }
   if (e.ctrlKey && e.code === "Space") { e.preventDefault(); handleKey("ctrl+space"); }
 });
 
@@ -145,6 +146,7 @@ function checkEvents() {
     if (!ev.notified && Date.now() >= remindAt && Date.now() < ev.at + 3600000) {
       ev.notified = true; changed = true;
       a.notify(ev.remind ? `Za ${ev.remind} min: ${ev.title}` : `Teraz: ${ev.title}`, new Date(ev.at).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) + (ev.note ? " · " + ev.note : ""));
+      a.discord_send(`🗓️ **${ev.remind ? `Za ${ev.remind} min` : "Teraz"}:** ${ev.title} (${new Date(ev.at).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })})`, "dcEvents");
     }
   }
   if (changed) { localStorage.setItem("majestic-ekipa-v1", JSON.stringify(data)); frames.ekipa.dataset.loaded && frames.ekipa.contentWindow.postMessage({ __payload: { refresh: true } }, "*"); }
@@ -182,8 +184,8 @@ async function watchServer() {
     hist.push({ t: Date.now(), n: s.players, s: id });
     store.set("majestic-gracze-v1", hist);
     if (lastSrv) {
-      if (s.techWorks && !lastSrv.techWorks) a.notify("Przerwa techniczna", `${s.name}: serwer ma przerwę techniczną.`);
-      if (!s.techWorks && lastSrv.techWorks) a.notify("Serwer znowu działa", `${s.name} wrócił po przerwie technicznej.`);
+      if (s.techWorks && !lastSrv.techWorks) { a.notify("Przerwa techniczna", `${s.name}: serwer ma przerwę techniczną.`); a.discord_send(`🛠️ **${s.name}**: serwer ma przerwę techniczną.`, "dcServer"); }
+      if (!s.techWorks && lastSrv.techWorks) { a.notify("Serwer znowu działa", `${s.name} wrócił po przerwie technicznej.`); a.discord_send(`✅ **${s.name}** znowu działa (${s.players} graczy).`, "dcServer"); }
       if (lastSrv.queuedPlayers > 0 && !s.queuedPlayers) a.notify("Kolejka zniknęła", `${s.name}: możesz wchodzić bez czekania.`);
     }
     lastSrv = s;
@@ -277,6 +279,7 @@ async function weeklyChecks() {
   if (now.getDay() === 0 && now.getHours() >= 18 && store.get("majestic-raport-v1", 0) !== st.ws) {
     store.set("majestic-raport-v1", st.ws);
     a.notify("Podsumowanie tygodnia", `Grałeś ${st.hours.toFixed(1).replace(".", ",")} h, na czysto ${usd(st.net)}.${st.best ? ` Najlepsza praca: ${st.best[0]} (${usd(st.best[1])}/h).` : ""}`);
+    a.discord_send(`📋 **Podsumowanie tygodnia**\n⏱️ Czas gry: **${st.hours.toFixed(1).replace(".", ",")} h**\n💰 Na czysto: **${usd(st.net)}**${st.best ? `\n🏆 Najlepsza praca: ${st.best[0]} (${usd(st.best[1])}/h)` : ""}`, "dcReport");
   }
   const goals = { hours: 10, money: 500000, ...store.get("majestic-cele-v1", {}) };
   const done = store.get("majestic-cele-zrobione-v1", {});
@@ -289,7 +292,7 @@ async function checkUpdate() {
   const a = api(); if (!a) return;
   try {
     const r = await a.check_update();
-    if (r && r.newer && store.get("majestic-wersja-v1", "") !== r.latest) { store.set("majestic-wersja-v1", r.latest); a.notify("Nowa wersja Majestic Companion", `Dostępna wersja ${r.latest}. Pobierzesz ją w Ustawieniach → Sprawdź aktualizacje.`); }
+    if (r && r.newer && store.get("majestic-wersja-v1", "") !== r.latest) { store.set("majestic-wersja-v1", r.latest); a.notify("Nowa wersja Majestic Companion", `Dostępna wersja ${r.latest}. Zainstalujesz ją jednym kliknięciem w Ustawieniach → Sprawdź aktualizacje.`); }
   } catch {}
 }
 setTimeout(() => { weeklyChecks(); checkUpdate(); }, 12000);

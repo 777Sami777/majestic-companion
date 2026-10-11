@@ -355,3 +355,14 @@ body.collapsed #inbox{left:14px;width:min(560px,calc(100% - 28px))}
 .terr-ch li{display:flex;justify-content:space-between;font-size:13px}
 .terr-ch em{font-style:normal;font-weight:600;font-variant-numeric:tabular-nums}
 .terr-ch em.up{color:var(--good,#22c55e)}.terr-ch em.down{color:var(--danger,#ef4444)}
+
+/* mapa ekipy na żywo */
+.crew-box{padding:2px 8px 8px;display:grid;gap:6px}
+.crew-box small{color:var(--text-3);font-size:12px;line-height:1.4}
+.crew-form{display:grid;gap:6px}
+.crew-form input{width:100%;padding:8px 10px;border-radius:4px;background:rgba(var(--fg-rgb),.05);border:1px solid var(--line-2);color:var(--text);font:inherit;outline:0}
+.crew-form input:focus{border-color:var(--accent)}
+.crew-st{display:flex;align-items:center;gap:8px;margin:0;font-weight:600}
+.crew-st i{width:8px;height:8px;border-radius:50%;background:#64748b}
+.crew-st.on i{background:var(--good,#22c55e);box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+.crew-st.err i{background:var(--danger,#ef4444)}

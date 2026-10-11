@@ -47,6 +47,7 @@
     <div class="row"><div class="txt"><b>Kolor akcentu</b><small>Przyciski, wyróżnienia i aktywna zakładka.</small></div><div class="sws" id="accent"></div></div>
     <div class="row"><div class="txt"><b>Dźwięki interfejsu</b><small>Ciche kliknięcie przy przyciskach.</small></div><label class="tog"><input type="checkbox" id="sounds"><i></i></label></div>
     <div class="row"><div class="txt"><b>Przypomnienie o przerwie</b><small>Powiadomienie, gdy jedna sesja trwa dłużej niż wybrany czas.</small></div><select id="breakH"><option value="0">Wyłączone</option><option value="1">Po 1 h</option><option value="2">Po 2 h</option><option value="3">Po 3 h</option><option value="4">Po 4 h</option></select></div>
+    <div class="row"><div class="txt"><b>Język / Language</b><small>English zmienia napisy interfejsu (wersja beta: część komunikatów zostaje po polsku).</small></div><div class="chips" id="lang"><button class="chip" data-l="pl">Polski</button><button class="chip" data-l="en">English</button></div></div>
     <div class="row"><div class="txt"><b>Wielkość interfejsu</b><small>Powiększa albo zmniejsza tekst i przyciski we wszystkich zakładkach.</small></div><div class="chips" id="scale"><button class="chip" data-s="0.9">Kompaktowy</button><button class="chip" data-s="1">Normalny</button><button class="chip" data-s="1.1">Duży</button><button class="chip" data-s="1.2">Bardzo duży</button></div></div>
     <div class="row"><div class="txt"><b>Mini-widżet</b><small>Małe okienko na wierzchu z czasem sesji i najbliższym minutnikiem. Można je przeciągać.</small></div><button class="btn ghost small" id="widget">Pokaż widżet</button></div>
   </section>
@@ -55,6 +56,14 @@
     <div class="row"><div class="txt"><b>Start z Windowsem</b><small>Aplikacja włącza się sama po uruchomieniu komputera, schowana przy zegarze.</small></div><label class="tog"><input type="checkbox" id="autostart"><i></i></label></div>
     <div class="row"><div class="txt"><b>Zamykanie chowa do zasobnika</b><small>Krzyżyk chowa okno do ikony przy zegarze. Minutniki, przypomnienia i powiadomienia działają dalej. Wyłączysz z menu ikony.</small></div><label class="tog"><input type="checkbox" id="tray"><i></i></label></div>
     <div class="row"><div class="txt"><b>Wersja aplikacji</b><small id="ver">Sprawdzam…</small></div><button class="btn ghost small" id="upd">Sprawdź aktualizacje</button></div>
+  </section>
+
+  <section class="panel rise" style="--d:2"><h2>Discord</h2>
+    <div class="row"><div class="txt"><b>Webhook kanału ekipy</b><small>Na Discordzie: Ustawienia kanału → Integracje → Webhooki → Nowy webhook → Kopiuj URL. Wklej go tutaj.</small></div>
+      <div class="btns"><input type="text" id="webhook" placeholder="https://discord.com/api/webhooks/…" aria-label="Adres webhooka Discorda" style="width:280px"><button class="btn ghost small" id="dc-test">Test</button></div></div>
+    <div class="row"><div class="txt"><b>Raport tygodnia</b><small>W niedzielę wieczorem: godziny gry, zarobek, najlepsza praca.</small></div><label class="tog"><input type="checkbox" id="dcReport"><i></i></label></div>
+    <div class="row"><div class="txt"><b>Przerwy techniczne serwera</b><small>Gdy serwer ma przerwę i gdy znowu działa.</small></div><label class="tog"><input type="checkbox" id="dcServer"><i></i></label></div>
+    <div class="row"><div class="txt"><b>Przypomnienia z grafiku ekipy</b><small>Te same co w powiadomieniach Windows, z zakładki Ekipa.</small></div><label class="tog"><input type="checkbox" id="dcEvents"><i></i></label></div>
   </section>
 
   <section class="panel rise" style="--d:2"><h2>Zrzuty ekranu</h2>
@@ -74,7 +83,7 @@
 
   <section class="panel rise" style="--d:4"><h2>Skróty</h2>
     <div class="keys">
-      <kbd>Ctrl 1–9</kbd><span>Przełączanie zakładek</span>
+      <kbd>Ctrl 1–0</kbd><span>Przełączanie zakładek (0 = Ustawienia)</span>
       <kbd>Ctrl Space</kbd><span>Szukaj w całej aplikacji</span>
       <kbd>Ctrl Shift N</kbd><span>Szybka notatka (działa też w grze)</span>
       <kbd>R / Z</kbd><span>Mapa: rysuj trasę / strefę (Enter kończy, Backspace cofa)</span><kbd>F11</kbd><span>Pełny ekran</span>
@@ -144,6 +153,7 @@ function renderLook() {
   $("#accent").innerHTML = ACCENTS.map((c) => `<button class="sw ${p.accent === c ? "on" : ""}" data-c="${c}" style="--c:${c}" aria-label="Kolor ${c}"></button>`).join("");
   $("#sounds").checked = !!p.sounds;
   $("#breakH").value = String(p.breakH ?? 2);
+  document.querySelectorAll("#lang .chip").forEach((c) => c.classList.toggle("on", (p.lang || "pl") === c.dataset.l));
   document.querySelectorAll("#scale .chip").forEach((c) => c.classList.toggle("on", +c.dataset.s === (p.scale || 1)));
 }
 function setLook(patch) {
@@ -157,7 +167,26 @@ $("#theme").addEventListener("click", (e) => { const b = e.target.closest("[data
 $("#accent").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) setLook({ accent: b.dataset.c }); });
 $("#sounds").addEventListener("change", (e) => setLook({ sounds: e.target.checked }));
 $("#breakH").addEventListener("change", (e) => setLook({ breakH: +e.target.value }));
+$("#lang").addEventListener("click", (e) => { const b = e.target.closest("[data-l]"); if (!b || (look().lang || "pl") === b.dataset.l) return; setLook({ lang: b.dataset.l }); window.parent.postMessage({ __reloadAll: true }, "*"); });
 $("#scale").addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b) setLook({ scale: +b.dataset.s }); });
+
+/* Discord: webhook + co wysyłać */
+function loadDiscord() {
+  if (!st) return;
+  $("#webhook").value = st.webhook || "";
+  ["dcReport", "dcServer", "dcEvents"].forEach((k) => ($("#" + k).checked = st[k] !== false));
+}
+const HOOK = /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/;
+$("#webhook").addEventListener("change", (e) => {
+  const v = e.target.value.trim();
+  if (v && !HOOK.test(v)) return say("To nie wygląda na adres webhooka Discorda (https://discord.com/api/webhooks/…).");
+  set({ webhook: v });
+});
+["dcReport", "dcServer", "dcEvents"].forEach((k) => $("#" + k).addEventListener("change", (e) => set({ [k]: e.target.checked })));
+$("#dc-test").addEventListener("click", async () => {
+  const ok = await Host.call("discord_send", "✅ Majestic MDT jest połączony z tym kanałem.");
+  say(ok ? "Wysłano wiadomość testową na Discorda." : "Nie udało się wysłać. Sprawdź adres webhooka.");
+});
 
 /* uruchamianie: autostart, zasobnik, wersja */
 async function loadRun() {
@@ -171,8 +200,13 @@ $("#tray").addEventListener("change", (e) => set({ trayOnClose: e.target.checked
 $("#upd").addEventListener("click", async () => {
   const r = await Host.call("check_update");
   if (!r) return say("Nie udało się sprawdzić aktualizacji: repozytorium jest prywatne albo nie ma internetu.");
-  say(r.newer ? `Jest nowa wersja ${r.latest} (masz ${r.current}). Otwieram stronę pobierania…` : `Masz najnowszą wersję (${r.current}).`);
-  if (r.newer) Host.call("open_url", r.url);
+  if (!r.newer) return say(`Masz najnowszą wersję (${r.current}).`);
+  if (!r.canInstall) { say(`Jest nowa wersja ${r.latest} (masz ${r.current}). Otwieram stronę pobierania…`); return Host.call("open_url", r.url); }
+  const b = $("#upd");
+  if (b.dataset.ready !== "1") { b.dataset.ready = "1"; b.textContent = `Zainstaluj ${r.latest}`; b.classList.add("primary"); return say(`Jest nowa wersja ${r.latest}. Kliknij „Zainstaluj”: aplikacja pobierze ją, zamknie się na chwilę i uruchomi ponownie. Twoje dane zostają.`); }
+  b.disabled = true; b.textContent = "Pobieram…"; say("Pobieram nową wersję z GitHuba (ok. 35 MB)…");
+  try { const res = await Host.call("install_update"); if (!res.ok) { say("Nie udało się: " + res.error); b.disabled = false; b.textContent = "Spróbuj ponownie"; } else say(`Instaluję wersję ${res.version}. Aplikacja zaraz uruchomi się ponownie…`); }
+  catch (e) { say("Nie udało się pobrać aktualizacji: " + e.message); b.disabled = false; b.textContent = "Spróbuj ponownie"; }
 });
 
 /* paczka dla kolegi: własne znaczniki, trasy/strefy i kontakty; wczytanie dokleja, nie nadpisuje */
@@ -198,7 +232,7 @@ $("#pack-in").addEventListener("click", async () => {
 });
 $("#widget").addEventListener("click", () => Host.call("open_widget").then(() => U.toast("Widżet jest w prawym górnym rogu ekranu")).catch(() => U.toast("Widżet działa w aplikacji Majestic Companion")));
 renderLook();
-load().then(loadRun);
+load().then(loadRun).then(loadDiscord);
 })();
 </script>
 </body>

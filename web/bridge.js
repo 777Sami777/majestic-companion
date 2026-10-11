@@ -1,5 +1,6 @@
 // Łączy moduł (iframe) z głównym oknem Majestic Companion.
 (() => {
+  const BASE = document.currentScript ? document.currentScript.src.replace(/[^/]*$/, "") : "";
   const embedded = window.parent !== window;
   const pending = new Map();
   const gameCbs = [], payloadCbs = [];
@@ -21,7 +22,7 @@
   document.addEventListener("keydown", (e) => {
     if (!embedded) return;
     if (e.key === "F11") { e.preventDefault(); window.parent.postMessage({ __key: "F11" }, "*"); }
-    if (e.ctrlKey && /^[1-9]$/.test(e.key)) { e.preventDefault(); window.parent.postMessage({ __key: "ctrl+" + e.key }, "*"); }
+    if (e.ctrlKey && /^[0-9]$/.test(e.key)) { e.preventDefault(); window.parent.postMessage({ __key: "ctrl+" + e.key }, "*"); }
     if (e.ctrlKey && e.code === "Space") { e.preventDefault(); window.parent.postMessage({ __key: "ctrl+space" }, "*"); }
   });
 
@@ -75,6 +76,8 @@
     root.style.setProperty("--accent-ink", 0.299 * r + 0.587 * g + 0.114 * b > 160 ? "#0c182c" : "#ffffff");
   }
   applyLook();
+  // wersja angielska: słownik napisów doczytywany tylko po wybraniu English
+  if (prefs().lang === "en" && BASE) { const sc = document.createElement("script"); sc.src = BASE + "i18n.js"; document.head.appendChild(sc); }
   window.addEventListener("storage", (e) => { if (e.key === "majestic-wyglad-v1") applyLook(); });
   window.addEventListener("message", (e) => { if (e.data && e.data.__look) applyLook(); });
 

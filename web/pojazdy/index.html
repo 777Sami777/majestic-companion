@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pojazdy</title>
+<link rel="stylesheet" href="../common.css">
+<style>
+.bar{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:12px}
+.bar input[type=text]{max-width:none}
+.tbl-wrap{overflow:auto;max-height:calc(100vh - 290px);border:1px solid var(--line-2);border-radius:6px;background:var(--bg-2)}
+table.veh{min-width:860px}
+.veh th{position:sticky;top:0;background:var(--card);z-index:1;cursor:pointer;user-select:none;white-space:nowrap}
+.veh th[aria-sort=ascending]::after{content:" ▲";color:var(--accent)}
+.veh th[aria-sort=descending]::after{content:" ▼";color:var(--accent)}
+.veh th.nosort{cursor:default}
+.veh td.num,.veh th.num{text-align:right}
+.veh tr:hover td{background:rgba(var(--fg-rgb),.035)}
+.veh td.nm b{display:block;font-weight:600}
+.veh td.nm small{color:var(--text-3)}
+.veh .tag{display:inline-block;padding:1px 7px;border-radius:3px;background:rgba(var(--fg-rgb),.07);font:600 12px var(--display);letter-spacing:.03em;color:var(--text-2)}
+.veh input[type=checkbox]{width:16px;height:16px}
+.cmp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.cmp-card{position:relative;padding:14px;border-radius:6px;background:var(--bg-2);border:1px solid var(--line-2)}
+.cmp-card img{display:block;width:100%;height:110px;object-fit:contain;margin-bottom:8px}
+.cmp-card h3{margin:0 0 8px;font:600 16px var(--display)}
+.cmp-card dl{display:grid;grid-template-columns:1fr auto;gap:4px 10px;margin:0;font-size:13.5px}
+.cmp-card dt{color:var(--text-3)}
+.cmp-card dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.cmp-card dd.best{color:var(--good)}
+.cmp-card .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:4px;display:grid;place-items:center;color:var(--text-3)}
+.cmp-card .x:hover{background:rgba(239,68,68,.14);color:#fca5a5}
+.meta{display:flex;justify-content:space-between;align-items:center;margin:8px 0 0;color:var(--text-3);font-size:12.5px}
+@media (max-width:1000px){.cmp{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero rise"><div><h1>Pojazdy</h1><p class="sub">Wszystkie auta, motocykle, łodzie i śmigłowce z Majestic Wiki. Zaznacz do trzech, żeby je porównać przed zakupem.</p></div>
+    <button class="btn" id="sync"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>Aktualizuj z wiki</button></div>
+  <div id="cmp" class="cmp" hidden></div>
+  <div class="bar rise" style="--d:1">
+    <input type="text" id="q" placeholder="Szukaj: nazwa albo model (np. sultan, Daimler)…" aria-label="Szukaj pojazdu">
+    <select id="type" aria-label="Rodzaj"><option value="">Wszystkie rodzaje</option><option value="car">Samochody</option><option value="moto">Motocykle</option><option value="truck">Ciężarówki</option><option value="bike">Rowery</option><option value="heli">Śmigłowce</option><option value="plane">Samoloty</option><option value="boat">Łodzie</option></select>
+    <select id="buy" aria-label="Dostępność"><option value="">Wszystkie</option><option value="1">Tylko na handel</option><option value="0">Bez handlu (donate/unikat)</option></select>
+  </div>
+  <div class="tbl-wrap rise" style="--d:2"><table class="veh"><thead><tr>
+    <th class="nosort" aria-label="Porównaj"></th><th data-k="1">Pojazd</th><th data-k="2">Rodzaj</th><th data-k="4">Paliwo</th>
+    <th class="num" data-k="6">Prędkość</th><th class="num" data-k="7">Z chipem</th><th class="num" data-k="5">Bagażnik</th><th class="num" data-k="8">Cena</th><th class="num" data-k="9">Odsprzedaż</th>
+  </tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="meta"><span id="count"></span><span id="src"></span></p>
+</div>
+<script src="../bridge.js"></script>
+<script src="../common.js"></script>
+<script>
+(() => {
+"use strict";
+const { $, esc, money } = U;
+const TYPES = { car: "Samochód", moto: "Motocykl", truck: "Ciężarówka", bike: "Rower", heli: "Śmigłowiec", plane: "Samolot", boat: "Łódź" };
+const IMG = (m) => `https://cdn.majestic-files.com/public/master/static/img/vehicles/${encodeURIComponent(m)}.png`;
+let all = [], sortK = 8, sortDir = -1, picked = U.load("majestic-pojazdy-cmp-v1", []), meta = null;
+const kmh = (v) => (v ? v + " km/h" : "—"), kg = (v) => (v ? v + " kg" : "—");
+
+function render() {
+  const q = $("#q").value.trim().toLowerCase(), type = $("#type").value, buy = $("#buy").value;
+  const list = all.filter((v) => (!type || v[2] === type) && (buy === "" || String(v[11]) === buy) && (!q || (v[1] + " " + v[0]).toLowerCase().includes(q)))
+    .sort((a, b) => (typeof a[sortK] === "string" ? a[sortK].localeCompare(b[sortK]) : a[sortK] - b[sortK]) * sortDir);
+  $("#rows").innerHTML = list.slice(0, 400).map((v) => `<tr>
+    <td><input type="checkbox" data-pick="${esc(v[0])}" ${picked.includes(v[0]) ? "checked" : ""} aria-label="Porównaj ${esc(v[1])}"></td>
+    <td class="nm"><b>${esc(v[1])}</b><small>${esc(v[0])}${v[3] ? " · " + esc(v[3]) : ""}</small></td>
+    <td><span class="tag">${TYPES[v[2]] || esc(v[2])}</span></td><td>${esc(v[4]) || "—"}</td>
+    <td class="num">${kmh(v[6])}</td><td class="num">${kmh(v[7])}</td><td class="num">${kg(v[5])}</td>
+    <td class="num">${v[8] ? money(v[8]) : "—"}</td><td class="num">${v[9] ? money(v[9]) : "—"}</td></tr>`).join("")
+    || `<tr><td colspan="9" class="empty"><b>Brak wyników</b>Zmień wyszukiwanie albo filtry.</td></tr>`;
+  $("#count").textContent = `${list.length} z ${all.length} pojazdów${list.length > 400 ? " · pokazuję pierwsze 400, zawęź wyszukiwanie" : ""}`;
+  document.querySelectorAll("th[data-k]").forEach((th) => th.setAttribute("aria-sort", +th.dataset.k === sortK ? (sortDir > 0 ? "ascending" : "descending") : "none"));
+  renderCmp();
+}
+function renderCmp() {
+  const vs = picked.map((m) => all.find((v) => v[0] === m)).filter(Boolean);
+  $("#cmp").hidden = !vs.length;
+  const best = (i, hi = true) => Math.max(...vs.map((v) => (hi ? v[i] : -v[i]) || -Infinity));
+  const row = (label, i, fmt, hi = true) => vs.map((v) => `<dt>${label}</dt><dd class="${vs.length > 1 && v[i] && (hi ? v[i] : -v[i]) === best(i, hi) ? "best" : ""}">${fmt(v[i])}</dd>`);
+  const rows = [row("Prędkość", 6, kmh), row("Z chipem", 7, kmh), row("Bagażnik", 5, kg), row("Ładowność", 10, kg), row("Cena", 8, (x) => (x ? money(x) : "—"), false), row("Odsprzedaż", 9, (x) => (x ? money(x) : "—"))];
+  $("#cmp").innerHTML = vs.map((v, n) => `<div class="cmp-card"><button class="x" data-unpick="${esc(v[0])}" title="Usuń z porównania" aria-label="Usuń z porównania"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <img src="${IMG(v[0])}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><h3>${esc(v[1])}</h3>
+    <dl>${rows.map((r) => r[n]).join("")}<dt>Paliwo</dt><dd>${esc(v[4]) || "—"}</dd><dt>Handel</dt><dd>${v[11] ? "tak" : "nie"}</dd></dl></div>`).join("");
+}
+function setPicked(p) { picked = p.slice(-3); U.save("majestic-pojazdy-cmp-v1", picked); render(); }
+$("#rows").addEventListener("change", (e) => { const c = e.target.closest("[data-pick]"); if (!c) return; const m = c.dataset.pick; setPicked(c.checked ? [...picked.filter((x) => x !== m), m] : picked.filter((x) => x !== m)); if (c.checked && picked.length === 3) U.toast("Porównujesz 3 pojazdy (najstarszy wypada z porównania)"); });
+$("#cmp").addEventListener("click", (e) => { const b = e.target.closest("[data-unpick]"); if (b) setPicked(picked.filter((x) => x !== b.dataset.unpick)); });
+document.querySelector("thead").addEventListener("click", (e) => { const th = e.target.closest("th[data-k]"); if (!th) return; const k = +th.dataset.k; sortDir = k === sortK ? -sortDir : (k <= 4 ? 1 : -1); sortK = k; render(); });
+["q", "type", "buy"].forEach((id) => $("#" + id).addEventListener("input", render));
+async function load() {
+  if (!Host.available) { $("#count").textContent = "Baza pojazdów działa w aplikacji Majestic Companion."; return; }
+  meta = await Host.call("vehicles");
+  all = (meta && meta.items) || [];
+  $("#src").textContent = meta && meta.at ? "Dane z Majestic Wiki · " + new Date(meta.at).toLocaleDateString("pl-PL") : "";
+  render();
+}
+$("#sync").addEventListener("click", async (e) => {
+  const b = e.currentTarget; b.disabled = true; b.lastChild.textContent = "Pobieram… (do 2 min)";
+  try { const r = await Host.call("vehicles_sync"); U.toast(r.ok ? `Pobrano ${r.count} pojazdów` : "Nie udało się: " + r.error); if (r.ok) await load(); }
+  catch (err) { U.toast("Nie udało się pobrać: " + err.message); }
+  b.disabled = false; b.lastChild.textContent = "Aktualizuj z wiki";
+});
+load();
+})();
+</script>
+</body>
+</html>

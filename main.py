@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import shutil
 import sys
 import threading
 import time
@@ -46,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -67,6 +68,7 @@ NO_WINDOW = 0x08000000
 SETTINGS_FILE = os.path.join(DATA_DIR, "ustawienia.json")
 WIKI_FILE = os.path.join(DATA_DIR, "warstwy_wiki.json")
 TERR_FILE = os.path.join(DATA_DIR, "historia_terytoriow.json")
+VEH_FILE = os.path.join(DATA_DIR, "pojazdy.json")
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 WIKI_LAYERS = ["captures", "treasure", "stash", "gatherer", "mushroomer", "animal", "airdrop", "game-zones", "dmv-cameras"]
 
@@ -456,6 +458,37 @@ class Api:
         hist.append({"at": new["at"], "server": new["server"], "counts": now, "diff": diff})
         save_json(TERR_FILE, hist[-60:])
 
+    def vehicles(self):
+        """Lista pojazdów: pobrana z wiki albo dołączona do aplikacji."""
+        for path in (VEH_FILE, resource("pojazdy.json")):
+            data = load_json(path, None)
+            if data:
+                return data
+        return None
+
+    def vehicles_sync(self):
+        script = open(resource("wiki_vehicles.js"), encoding="utf-8").read()
+        win = webview.create_window("wiki-pojazdy", "https://wiki.gta5majestic.com/pl/vehicles", hidden=True)
+        data = None
+        try:
+            for _ in range(240):  # do 2 min: kilkanaście stron listy
+                time.sleep(0.5)
+                try:
+                    if win.evaluate_js("!!document.querySelector('button') && !window.__vehStarted"):
+                        win.evaluate_js("window.__vehStarted = true;" + script)
+                    data = win.evaluate_js("window.__veh || null")
+                except Exception:
+                    data = None
+                if data:
+                    break
+        finally:
+            win.destroy()
+        if not data or data.get("error"):
+            return {"ok": False, "error": (data or {}).get("error", "brak odpowiedzi wiki")}
+        out = {"at": time.time() * 1000, "items": data["items"]}
+        save_json(VEH_FILE, out)
+        return {"ok": True, "count": len(out["items"])}
+
     def wiki_history(self):
         return load_json(TERR_FILE, [])
 
@@ -510,6 +543,22 @@ class Api:
         with open(result[0], encoding="utf-8") as f:
             return f.read(5_000_000)
 
+    def discord_send(self, text, kind=""):
+        """Wiadomość na kanał ekipy przez webhook z Ustawień (kind: dcReport / dcServer / dcEvents)."""
+        st = load_settings()
+        url = st.get("webhook", "")
+        if not WEBHOOK_RE.match(url) or (kind and not st.get(kind, True)):
+            return False
+        import urllib.request
+        body = json.dumps({"username": "Majestic MDT", "content": str(text)[:1900]}).encode()
+        req = urllib.request.Request(url, data=body, method="POST",
+                                     headers={"Content-Type": "application/json", "User-Agent": "MajesticCompanion"})
+        try:
+            with urllib.request.urlopen(req, timeout=10):
+                return True
+        except Exception:
+            return False
+
     def app_version(self):
         return APP_VERSION
 
@@ -527,7 +576,43 @@ class Api:
             return None
         tag = str(rel.get("tag_name", "")).lstrip("vV")
         newer = tuple(int(x) for x in re.findall(r"\d+", tag)[:3]) > tuple(int(x) for x in APP_VERSION.split("."))
-        return {"current": APP_VERSION, "latest": tag, "newer": newer, "url": rel.get("html_url", ""), "notes": (rel.get("body") or "")[:1500]}
+        asset = next((a.get("browser_download_url", "") for a in rel.get("assets", []) if str(a.get("name", "")).lower().endswith(".zip")), "")
+        return {"current": APP_VERSION, "latest": tag, "newer": newer, "url": rel.get("html_url", ""), "asset": asset,
+                "notes": (rel.get("body") or "")[:1500], "canInstall": bool(asset) and getattr(sys, "frozen", False)}
+
+    def install_update(self):
+        """Pobiera zip z GitHuba, a skrypt po zamknięciu aplikacji podmienia pliki i uruchamia nową wersję."""
+        import urllib.request
+        info = self.check_update()
+        if not info or not info["newer"] or not info["canInstall"]:
+            return {"ok": False, "error": "Brak nowszej wersji do zainstalowania"}
+        url = info["asset"]
+        if not url.startswith(f"https://github.com/{GITHUB_REPO}/releases/download/"):
+            return {"ok": False, "error": "Nieznane źródło aktualizacji"}
+        tmp = os.path.join(os.environ.get("TEMP", DATA_DIR), "majestic_update")
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(tmp, exist_ok=True)
+        zpath = os.path.join(tmp, "update.zip")
+        req = urllib.request.Request(url, headers={"User-Agent": "MajesticCompanion"})
+        with urllib.request.urlopen(req, timeout=60) as r, open(zpath, "wb") as f:
+            shutil.copyfileobj(r, f)
+        with zipfile.ZipFile(zpath) as z:
+            z.extractall(tmp)
+        new_dir = os.path.join(tmp, "MajesticCompanion")
+        if not os.path.isfile(os.path.join(new_dir, "MajesticCompanion.exe")):
+            return {"ok": False, "error": "Pobrany plik nie zawiera aplikacji"}
+        app_dir = os.path.dirname(sys.executable)
+        bat = os.path.join(tmp, "aktualizuj.bat")
+        with open(bat, "w", encoding="mbcs") as f:
+            f.write(f"""@echo off
+:wait
+tasklist /fi "imagename eq MajesticCompanion.exe" | find /i "MajesticCompanion.exe" >nul && (timeout /t 1 /nobreak >nul & goto wait)
+robocopy "{new_dir}" "{app_dir}" /e /njh /njs /nfl /ndl /np >nul
+start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
+""")
+        subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000 | 0x00000008)  # bez okna, odłączony
+        threading.Timer(0.8, self.quit_app).start()
+        return {"ok": True, "version": info["latest"]}
 
     def open_url(self, url):
         if str(url).startswith("https://github.com/"):
@@ -597,7 +682,9 @@ class Api:
             return z.read("dane.json").decode("utf-8")
 
 
-DEFAULT_SETTINGS = {"shotDirs": [], "overlayKey": "F10", "server": "PL1", "trayOnClose": True}
+DEFAULT_SETTINGS = {"shotDirs": [], "overlayKey": "F10", "server": "PL1", "trayOnClose": True,
+                    "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True}
+WEBHOOK_RE = re.compile(r"^https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+$")
 VK = {f"F{i}": 0x6F + i for i in range(1, 13)}
 
 

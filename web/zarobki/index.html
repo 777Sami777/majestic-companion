@@ -38,6 +38,24 @@
 .log button{width:30px;height:30px;border-radius:4px;color:var(--text-3);display:grid;place-items:center}
 .log button:hover{background:rgba(255,90,106,.12);color:#ff8a96}
 .two{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+.hint{margin:0 0 14px;color:var(--text-2);font-size:13.5px}
+.craft{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start}
+.craft-list ul{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:4px}
+.craft-list li button{width:100%;text-align:left;padding:8px 10px;border-radius:4px;background:var(--card);border:1px solid var(--line)}
+.craft-list li button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.craft-edit .row2{display:grid;grid-template-columns:1fr 130px 130px;gap:8px;margin-bottom:10px}
+.mats{width:100%;margin:6px 0 10px}
+.mats td{padding:5px 6px}
+.mats input{padding:7px 9px!important}
+.mats .del{width:28px;height:28px;border-radius:4px;color:var(--text-3)}
+.mats .del:hover{background:rgba(239,68,68,.14);color:#fca5a5}
+.calc{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.calc div{padding:12px;border-radius:6px;background:var(--card);border:1px solid var(--line)}
+.calc label{display:block;font:600 12px var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.calc b{display:block;margin-top:6px;font:700 20px var(--display);font-variant-numeric:tabular-nums}
+.calc .pos b{color:var(--good)}.calc .neg b{color:var(--bad)}
+.need{margin:10px 0 0;color:var(--text-2);font-size:13.5px}
+@media (max-width:1000px){.craft{grid-template-columns:1fr}.calc{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:1100px){.two{grid-template-columns:1fr}.job{grid-template-columns:130px 1fr 90px}.job .tot{display:none}}
 </style>
 </head>
@@ -62,6 +80,13 @@
     </form>
   </section>
   <div id="out"></div>
+  <section class="panel rise" style="--d:8"><h2>Kalkulator craftingu</h2>
+    <p class="hint">Wpisz przepis raz: co powstaje, z jakich materiałów i ile one kosztują. Potem ustaw liczbę sztuk, a kalkulator policzy materiały, koszt i zysk.</p>
+    <div class="craft">
+      <div class="craft-list"><ul id="recipes"></ul><button class="btn ghost small" id="r-new">+ Nowy przepis</button></div>
+      <div class="craft-edit" id="r-edit"></div>
+    </div>
+  </section>
 </div>
 <script src="../bridge.js"></script>
 <script src="../common.js"></script>
@@ -137,6 +162,51 @@ Host.onPayload((p) => {
   f.amt.focus(); U.toast(`Sesja trwała ${p.sessionMin} min. Wpisz pracę i zarobek`);
 });
 render();
+
+/* ---------- kalkulator craftingu: przepisy użytkownika ---------- */
+const RKEY = "majestic-crafting-v1";
+let recipes = U.load(RKEY, []), cur = recipes[0]?.id || null, qty = 1;
+const saveR = () => U.save(RKEY, recipes);
+function renderRecipes() {
+  $("#recipes").innerHTML = recipes.map((r) => `<li><button data-r="${r.id}" class="${r.id === cur ? "on" : ""}">${esc(r.name || "Bez nazwy")}</button></li>`).join("") || `<li class="hint">Brak przepisów.</li>`;
+  const r = recipes.find((x) => x.id === cur);
+  if (!r) { $("#r-edit").innerHTML = `<p class="hint">Dodaj przepis, np. „Amunicja 9mm”: 2× proch po $300, 1× łuska po $150, wychodzi 10 sztuk, sprzedaż po $120.</p>`; return; }
+  const cost = r.mats.reduce((a, m) => a + (+m.n || 0) * (+m.p || 0), 0);
+  const batches = Math.ceil(qty / Math.max(1, +r.out || 1)), made = batches * Math.max(1, +r.out || 1);
+  const total = cost * batches, income = made * (+r.sell || 0), profit = income - total;
+  $("#r-edit").innerHTML = `
+    <div class="row2"><label class="field"><span>Co powstaje</span><input type="text" data-f="name" value="${esc(r.name)}" maxlength="50"></label>
+      <label class="field"><span>Sztuk z 1 craftu</span><input type="number" data-f="out" min="1" value="${esc(r.out)}"></label>
+      <label class="field"><span>Cena sprzedaży / szt.</span><input type="number" data-f="sell" min="0" value="${esc(r.sell)}"></label></div>
+    <table class="mats"><thead><tr><th>Materiał</th><th>Ilość na craft</th><th>Cena / szt. ($)</th><th></th></tr></thead><tbody>
+      ${r.mats.map((m, i) => `<tr><td><input type="text" data-m="${i}" data-k="name" value="${esc(m.name)}" placeholder="np. Proch"></td><td><input type="number" min="0" data-m="${i}" data-k="n" value="${esc(m.n)}"></td><td><input type="number" min="0" data-m="${i}" data-k="p" value="${esc(m.p)}"></td><td><button class="del" data-mdel="${i}" title="Usuń materiał" aria-label="Usuń materiał"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></td></tr>`).join("")}
+    </tbody></table>
+    <button class="btn ghost small" id="m-add">+ Materiał</button> <button class="btn danger small" id="r-del">Usuń przepis</button>
+    <div class="calc">
+      <div><label>Ile chcesz zrobić</label><input type="number" id="qty" min="1" value="${qty}" aria-label="Liczba sztuk"></div>
+      <div><label>Koszt materiałów</label><b>${money(total)}</b></div>
+      <div><label>Sprzedaż (${made} szt.)</label><b>${money(income)}</b></div>
+      <div class="${profit >= 0 ? "pos" : "neg"}"><label>Zysk</label><b>${money(profit)}</b></div>
+    </div>
+    <p class="need">Potrzebujesz (${batches} × craft): ${r.mats.filter((m) => m.name).map((m) => `<b>${(+m.n || 0) * batches}× ${esc(m.name)}</b>`).join(", ") || "dodaj materiały"}.</p>`;
+}
+$("#recipes").addEventListener("click", (e) => { const b = e.target.closest("[data-r]"); if (b) { cur = b.dataset.r; renderRecipes(); } });
+$("#r-new").addEventListener("click", () => { const r = { id: uid(), name: "Nowy przepis", out: 1, sell: 0, mats: [{ name: "", n: 1, p: 0 }] }; recipes.push(r); cur = r.id; saveR(); renderRecipes(); });
+$("#r-edit").addEventListener("change", (e) => {
+  const r = recipes.find((x) => x.id === cur); if (!r) return;
+  const t = e.target;
+  if (t.id === "qty") qty = Math.max(1, Math.round(+t.value || 1));
+  else if (t.dataset.f) r[t.dataset.f] = t.dataset.f === "name" ? t.value.slice(0, 50) : Math.max(0, +t.value || 0);
+  else if (t.dataset.m) r.mats[+t.dataset.m][t.dataset.k] = t.dataset.k === "name" ? t.value.slice(0, 40) : Math.max(0, +t.value || 0);
+  saveR(); renderRecipes();
+});
+$("#r-edit").addEventListener("click", (e) => {
+  const r = recipes.find((x) => x.id === cur); if (!r) return;
+  if (e.target.id === "m-add") { r.mats.push({ name: "", n: 1, p: 0 }); saveR(); renderRecipes(); }
+  const d = e.target.closest("[data-mdel]"); if (d) { r.mats.splice(+d.dataset.mdel, 1); saveR(); renderRecipes(); }
+  if (e.target.id === "r-del") { recipes = recipes.filter((x) => x !== r); cur = recipes[0]?.id || null; saveR(); renderRecipes(); U.toast("Usunięto przepis"); }
+});
+renderRecipes();
 })();
 </script>
 </body>
