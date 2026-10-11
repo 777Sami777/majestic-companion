@@ -54,6 +54,7 @@
     <div class="row"><div class="txt"><b>Kolor akcentu</b><small>Przyciski, wyróżnienia i aktywna zakładka.</small></div><div class="sws" id="accent"></div></div>
     <div class="row"><div class="txt"><b>Dźwięki interfejsu</b><small>Ciche kliknięcie przy przyciskach.</small></div><label class="tog"><input type="checkbox" id="sounds"><i></i></label></div>
     <div class="row"><div class="txt"><b>Przypomnienie o przerwie</b><small>Powiadomienie, gdy jedna sesja trwa dłużej niż wybrany czas.</small></div><select id="breakH"><option value="0">Wyłączone</option><option value="1">Po 1 h</option><option value="2">Po 2 h</option><option value="3">Po 3 h</option><option value="4">Po 4 h</option></select></div>
+    <div class="row"><div class="txt"><b>Tryb streamera</b><small>Ukrywa kwoty pieniędzy, nick postaci i kody we wszystkich zakładkach, gdy nagrywasz albo streamujesz.</small></div><label class="tog"><input type="checkbox" id="streamer"><i></i></label></div>
     <div class="row"><div class="txt"><b>Język / Language</b><small>English zmienia napisy interfejsu (wersja beta: część komunikatów zostaje po polsku).</small></div><div class="chips" id="lang"><button class="chip" data-l="pl">Polski</button><button class="chip" data-l="en">English</button></div></div>
     <div class="row"><div class="txt"><b>Wielkość interfejsu</b><small>Powiększa albo zmniejsza tekst i przyciski we wszystkich zakładkach.</small></div><div class="chips" id="scale"><button class="chip" data-s="0.9">Kompaktowy</button><button class="chip" data-s="1">Normalny</button><button class="chip" data-s="1.1">Duży</button><button class="chip" data-s="1.2">Bardzo duży</button></div></div>
     <div class="row"><div class="txt"><b>Mini-widżet</b><small>Małe okienko na wierzchu z czasem sesji i najbliższym minutnikiem. Można je przeciągać.</small></div><button class="btn ghost small" id="widget">Pokaż widżet</button></div>
@@ -81,6 +82,8 @@
   <section class="panel rise" style="--d:3"><h2>Dane</h2>
     <div class="row"><div class="txt"><b>Kopia zapasowa</b><small>Znaczniki, kontakty, minutniki, zarobki, własne teksty RP, ustawienia i zrzuty w jednym pliku ZIP.</small></div>
       <div class="btns"><button class="btn primary small" id="backup">Zapisz kopię</button><button class="btn ghost small" id="restore">Wczytaj kopię</button></div></div>
+    <div class="row"><div class="txt"><b>Kopia w chmurze (codziennie)</b><small id="cloud-info">Raz dziennie kopia zapisuje się w folderze OneDrive albo Google Drive, który synchronizuje się z chmurą. Trzymam 7 ostatnich kopii.</small></div>
+      <div class="btns"><select id="cloud" aria-label="Folder kopii w chmurze" style="max-width:260px"></select><button class="btn ghost small" id="cloud-now" type="button">Zrób teraz</button></div></div>
     <div class="row"><div class="txt"><b>Paczka dla kolegi</b><small>Twoje znaczniki, trasy, strefy i kontakty w jednym pliku. Kolega wczytuje ją u siebie, a jego własne dane zostają.</small></div>
       <div class="btns"><button class="btn primary small" id="pack-out">Zapisz paczkę</button><button class="btn ghost small" id="pack-in">Wczytaj paczkę</button></div></div>
     <div class="row"><div class="txt"><b>Warstwy z Majestic Wiki</b><small id="wiki-info">Terytoria gangów, strefy skarbów, skrytki, zbieractwo, airdropy, strefy gry i fotoradary. Pobieranie trwa ok. 30 s.</small></div><button class="btn ghost small" id="wiki">Aktualizuj teraz</button></div>
@@ -160,6 +163,7 @@ function renderLook() {
   $("#accent").innerHTML = ACCENTS.map((c) => `<button class="sw ${p.accent === c ? "on" : ""}" data-c="${c}" style="--c:${c}" aria-label="Kolor ${c}"></button>`).join("");
   $("#sounds").checked = !!p.sounds;
   $("#breakH").value = String(p.breakH ?? 2);
+  $("#streamer").checked = !!p.streamer;
   document.querySelectorAll("#lang .chip").forEach((c) => c.classList.toggle("on", (p.lang || "pl") === c.dataset.l));
   document.querySelectorAll("#scale .chip").forEach((c) => c.classList.toggle("on", +c.dataset.s === (p.scale || 1)));
 }
@@ -174,6 +178,25 @@ $("#theme").addEventListener("click", (e) => { const b = e.target.closest("[data
 $("#accent").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) setLook({ accent: b.dataset.c }); });
 $("#sounds").addEventListener("change", (e) => setLook({ sounds: e.target.checked }));
 $("#breakH").addEventListener("change", (e) => setLook({ breakH: +e.target.value }));
+$("#streamer").addEventListener("change", (e) => { setLook({ streamer: e.target.checked }); window.parent.postMessage({ __reloadAll: true }, "*"); });
+/* kopia w chmurze */
+async function loadCloud() {
+  if (!Host.available || !st) return;
+  const dirs = await Host.call("cloud_folders");
+  const cur = st.cloudDir || "";
+  const opts = [["", "Wyłączona"], ...dirs.map((d) => [d.path, `${d.name} (${d.path})`])];
+  if (cur && !opts.some(([p]) => p === cur)) opts.push([cur, cur]);
+  $("#cloud").innerHTML = opts.map(([p, n]) => `<option value="${esc(p)}" ${p === cur ? "selected" : ""}>${esc(n)}</option>`).join("") + `<option value="__pick">Wybierz inny folder…</option>`;
+  if (!dirs.length && !cur) $("#cloud-info").textContent += " Nie znalazłem OneDrive ani Google Drive: wybierz folder ręcznie.";
+}
+const backupData = () => { const d = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith("majestic-")) d[k] = localStorage.getItem(k); } return JSON.stringify({ app: "majestic-companion", version: 1, data: d }); };
+$("#cloud").addEventListener("change", async (e) => {
+  let v = e.target.value;
+  if (v === "__pick") { v = await Host.call("pick_folder"); if (!v) return loadCloud(); }
+  await set({ cloudDir: v }); loadCloud();
+  if (v) { const r = await Host.call("auto_backup", backupData()); say(r.ok ? "Kopia zapisana: " + r.path : "Nie udało się: " + r.error); }
+});
+$("#cloud-now").addEventListener("click", async () => { const r = await Host.call("auto_backup", backupData()); say(r.ok ? "Kopia zapisana: " + r.path : "Najpierw wybierz folder chmury."); });
 $("#lang").addEventListener("click", (e) => { const b = e.target.closest("[data-l]"); if (!b || (look().lang || "pl") === b.dataset.l) return; setLook({ lang: b.dataset.l }); window.parent.postMessage({ __reloadAll: true }, "*"); });
 $("#scale").addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b) setLook({ scale: +b.dataset.s }); });
 
@@ -250,7 +273,7 @@ $("#pack-in").addEventListener("click", async () => {
 });
 $("#widget").addEventListener("click", () => Host.call("open_widget").then(() => U.toast("Widżet jest w prawym górnym rogu ekranu")).catch(() => U.toast("Widżet działa w aplikacji Majestic Companion")));
 renderLook();
-load().then(loadRun).then(loadDiscord);
+load().then(loadRun).then(loadDiscord).then(loadCloud);
 })();
 </script>
 </body>

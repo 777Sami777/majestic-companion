@@ -77,6 +77,7 @@
   }
   applyLook();
   // wersja angielska: słownik napisów doczytywany tylko po wybraniu English
+  if (prefs().streamer && BASE) { const sm = document.createElement("script"); sm.src = BASE + "streamer.js"; document.head.appendChild(sm); }
   if (prefs().lang === "en" && BASE) { const sc = document.createElement("script"); sc.src = BASE + "i18n.js"; document.head.appendChild(sc); }
   window.addEventListener("storage", (e) => { if (e.key === "majestic-wyglad-v1") applyLook(); });
   window.addEventListener("message", (e) => { if (e.data && e.data.__look) applyLook(); });

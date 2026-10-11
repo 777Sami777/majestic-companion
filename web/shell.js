@@ -44,7 +44,7 @@ function moveGlider() {
   g.style.height = on.offsetHeight + "px";
   g.style.transform = `translateY(${on.offsetTop}px)`;
 }
-const NAMES = { dzis: "Dziś", mapa: "Mapa", kontakty: "Kontakty", sesje: "Statystyki gry", minutniki: "Minutniki", zarobki: "Zarobki", pojazdy: "Rynek", crafting: "Crafting", rp: "Teksty RP", ekipa: "Ekipa", ustawienia: "Ustawienia" };
+const NAMES = { dzis: "Dziś", mapa: "Mapa", kontakty: "Kontakty", sesje: "Statystyki gry", minutniki: "Minutniki", zarobki: "Zarobki", pojazdy: "Rynek", crafting: "Crafting", rp: "Postać i RP", ekipa: "Ekipa", ustawienia: "Ustawienia" };
 function setCallsign(mod) {
   $("#cs-code").textContent = "MDT-" + String(MODS.indexOf(mod) + 1).padStart(2, "0");
   $("#cs-name").textContent = NAMES[mod] || mod;
@@ -318,7 +318,20 @@ async function checkUpdate() {
     if (r && r.newer && store.get("majestic-wersja-v1", "") !== r.latest) { store.set("majestic-wersja-v1", r.latest); a.notify("Nowa wersja Majestic Companion", `Dostępna wersja ${r.latest}. Zainstalujesz ją jednym kliknięciem w Ustawieniach → Sprawdź aktualizacje.`); }
   } catch {}
 }
+async function dailyJobs() {
+  const a = api(); if (!a) return;
+  const today = new Date().toDateString();
+  if (store.get("majestic-kopia-dzien-v1", "") !== today) {
+    const d = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith("majestic-")) d[k] = localStorage.getItem(k); }
+    try { const r = await a.auto_backup(JSON.stringify({ app: "majestic-companion", version: 1, data: d })); if (r.ok) store.set("majestic-kopia-dzien-v1", today); } catch {}
+  }
+  if (store.get("majestic-zmiany-dzien-v1", "") !== today) {
+    store.set("majestic-zmiany-dzien-v1", today);
+    try { const r = await a.changelog_sync(); if (r.ok && r.new.length) a.notify("Nowa łatka Majestic", r.new[0] + " · szczegóły w Statystykach"); } catch {}
+  }
+}
 setTimeout(() => { weeklyChecks(); checkUpdate(); }, 12000);
+setTimeout(dailyJobs, 90000); setInterval(dailyJobs, 3600000);
 setInterval(weeklyChecks, 1800000);
 boot();
 })();

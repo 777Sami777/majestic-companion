@@ -33,6 +33,13 @@
 .gbar i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .6s var(--ease)}
 .goal.done .gbar i{background:var(--good)}
 .goal.done .goal-top b{color:var(--good)}
+.todo{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:4px}
+.todo label{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:4px;background:var(--card);cursor:pointer}
+.todo input{width:17px;height:17px}
+.todo .done span{text-decoration:line-through;color:var(--text-3)}
+.todo button{width:26px;height:26px;border-radius:4px;color:var(--text-3);display:grid;place-items:center}
+.todo button:hover{color:#fca5a5}
+.todo-add{display:grid;grid-template-columns:1fr auto;gap:8px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--c,var(--accent))}
 @media (max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.cols{grid-template-columns:1fr}}
 </style>
@@ -52,6 +59,10 @@
       <section class="panel rise" style="--d:2"><h2>Najbliższe minutniki</h2><ul class="rows" id="timers"></ul></section>
       <section class="panel rise" style="--d:3"><h2>Grafik ekipy</h2><ul class="rows" id="events"></ul></section>
       <section class="panel rise" style="--d:3"><h2>Cele tygodnia</h2><div id="goals"></div></section>
+      <section class="panel rise" style="--d:3"><h2>Zadania na dziś <span id="todo-count"></span></h2>
+        <ul class="todo" id="todo"></ul>
+        <form id="todo-add" class="todo-add" autocomplete="off"><input name="t" maxlength="60" placeholder="Dodaj stałe zadanie, np. Skrytka kontrabandy" aria-label="Nowe zadanie"><button class="btn small">Dodaj</button></form>
+      </section>
     </div>
     <div class="grid">
       <section class="panel rise" style="--d:4"><h2>Notatki <span id="n-count"></span></h2><ul class="rows notes" id="notes"></ul></section>
@@ -93,6 +104,23 @@ function renderNotes() {
   $("#n-count").textContent = notes.length || "";
   $("#notes").innerHTML = notes.slice(0, 30).map((n) => `<li><div><p>${esc(n.t)}</p><small>${new Date(n.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></div><button class="x" data-del="${n.id}" title="Usuń notatkę" aria-label="Usuń notatkę">${xIcon}</button></li>`).join("") || `<li class="muted">Brak notatek. W grze naciśnij Ctrl+Shift+N, żeby szybko coś zapisać.</li>`;
 }
+/* zadania dnia: stała lista, odhaczenia kasują się o północy */
+const TKEY = "majestic-zadania-v1";
+function todoState() {
+  const d = U.load(TKEY, null) || { items: ["PayDay odebrany", "Zbieranie (kraby / glony)", "Skrytka kontrabandy", "Opłacić dom", "Sprawdzić grafik ekipy"], done: [], day: "" };
+  const today = new Date().toDateString();
+  if (d.day !== today) { d.day = today; d.done = []; U.save(TKEY, d); }
+  return d;
+}
+function renderTodo() {
+  const d = todoState();
+  $("#todo-count").textContent = `${d.done.length}/${d.items.length}`;
+  $("#todo").innerHTML = d.items.map((t, i) => `<li class="${d.done.includes(t) ? "done" : ""}"><label><input type="checkbox" data-t="${i}" ${d.done.includes(t) ? "checked" : ""}><span>${esc(t)}</span><button type="button" data-tdel="${i}" title="Usuń zadanie" aria-label="Usuń zadanie">${xIcon}</button></label></li>`).join("");
+}
+$("#todo").addEventListener("change", (e) => { const d = todoState(), t = d.items[+e.target.dataset.t]; d.done = e.target.checked ? [...d.done, t] : d.done.filter((x) => x !== t); U.save(TKEY, d); renderTodo(); });
+$("#todo").addEventListener("click", (e) => { const b = e.target.closest("[data-tdel]"); if (!b) return; e.preventDefault(); const d = todoState(); const t = d.items[+b.dataset.tdel]; d.items = d.items.filter((x) => x !== t); d.done = d.done.filter((x) => x !== t); U.save(TKEY, d); renderTodo(); });
+$("#todo-add").addEventListener("submit", (e) => { e.preventDefault(); const t = e.target.t.value.trim(); if (!t) return; const d = todoState(); if (!d.items.includes(t)) d.items.push(t); U.save(TKEY, d); e.target.t.value = ""; renderTodo(); });
+renderTodo(); setInterval(renderTodo, 60000);
 function renderGoals() {
   const ws = dayStart(Date.now()) - ((new Date().getDay() + 6) % 7) * DAY;
   const g = { hours: 10, money: 500000, ...U.load("majestic-cele-v1", {}) };

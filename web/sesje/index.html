@@ -90,6 +90,21 @@ h1{margin:0;font:700 30px/1.05 var(--display);letter-spacing:.03em;text-transfor
 .srv-list li{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:8px 12px;border-radius:6px}
 .srv-list li.me{background:rgba(var(--fg-rgb),.06)}
 .srv-list small{color:var(--text-3)}.srv-list b{font:700 17px var(--display);font-variant-numeric:tabular-nums}
+.wrapped{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 18%,var(--bg-2)),var(--bg-2) 60%)}
+.wr{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.wr b{display:block;font:700 24px/1.1 var(--display);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.wr span{color:var(--text-3);font-size:12.5px}
+.terr{width:100%;height:auto;display:block}
+.leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0 0;font-size:12.5px;color:var(--text-2)}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+details.ch{border-top:1px solid var(--line);padding:8px 0}
+details.ch summary{display:flex;justify-content:space-between;gap:10px;cursor:pointer;list-style:none}
+details.ch summary::-webkit-details-marker{display:none}
+details.ch time{color:var(--text-3);font-size:12.5px}
+details.ch ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+details.ch li{display:grid;grid-template-columns:84px 1fr;gap:10px;font-size:13.5px;color:var(--text-2)}
+details.ch em{font-style:normal;font:600 12px var(--display);letter-spacing:.04em;color:var(--c);text-transform:uppercase}
+@media (max-width:1000px){.wr{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .peak{margin:0 0 12px}
 .peak-head{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-3);margin-bottom:6px}
 .peak-head b{color:var(--text-2);font-weight:600}
@@ -157,6 +172,9 @@ function render(first) {
     </div>
     ${liveHtml()}
     ${goalsHtml(sumSince(weekStart), weekStart)}
+    ${monthHtml(S)}
+    ${terrHtml()}
+    ${changesHtml()}
     <div class="panel rise" style="--d:5"><h2>Ostatnie 14 dni <span>${hours(perDay.reduce((a, b) => a + b, 0))}</span></h2>
       <div class="chart">${days.map((d, i) => { const h = (perDay[i] / maxDay) * 100; return `<div class="col ${d === today ? "today" : ""}" title="${new Date(d).toLocaleDateString("pl-PL")}: ${dur(perDay[i])}">
         <div class="bar-wrap" style="--h:${h}%"><em>${perDay[i] ? dur(perDay[i]) : ""}</em><div class="bar ${perDay[i] ? "" : "zero"} ${d === today ? "today" : ""}" style="height:${Math.max(h, 1.5)}%;--i:${i}"></div></div>
@@ -209,9 +227,56 @@ function peakHtml() {
 }
 async function loadLive() {
   try { const st = await Host.call("get_settings"); if (st && st.server) myServer = String(st.server).toLowerCase(); } catch {}
-  try { live = await Host.call("live"); } catch {}
+  try { live = await Host.call("live"); if (live && live.nick) localStorage.setItem("majestic-nick-v1", JSON.stringify(live.nick)); } catch {}
   if (data) render(false);
 }
+/* podsumowanie miesiąca */
+function monthHtml(S) {
+  const m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0);
+  const t0 = m0.getTime(), sec = S.filter((s) => s.joined >= t0).reduce((a, s) => a + s.played, 0);
+  let log = [], mapS = {}, notes = [];
+  try { log = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= t0); mapS = JSON.parse(localStorage.getItem("majestic-mapa-v1")) || {}; notes = (JSON.parse(localStorage.getItem("majestic-notatki-v1")) || []).filter((n) => n.at >= t0); } catch {}
+  const net = log.reduce((a, l) => a + l.amt, 0), jobs = {};
+  log.filter((l) => l.kind !== "exp").forEach((l) => (jobs[l.job] = (jobs[l.job] || 0) + l.amt));
+  const best = Object.entries(jobs).sort((a, b) => b[1] - a[1])[0];
+  const own = (mapS.markers || []).filter((m) => !m.builtin).length, routes = (mapS.drawings || []).filter((d) => d.kind === "route").length;
+  const days = new Set(S.filter((s) => s.joined >= t0).map((s) => new Date(s.joined).toDateString())).size;
+  const mname = m0.toLocaleDateString("pl-PL", { month: "long" });
+  const money = (n) => (n < 0 ? "−" : "") + "$" + Math.abs(Math.round(n)).toLocaleString("pl-PL");
+  return `<div class="panel rise wrapped" style="--d:6"><h2>Twój ${esc(mname)} na Majestic</h2><div class="wr">
+    <div><b>${hours(sec)}</b><span>w grze, ${days} ${days === 1 ? "dzień" : "dni"}</span></div>
+    <div><b>${money(net)}</b><span>zarobione na czysto</span></div>
+    <div><b>${best ? esc(best[0]) : "—"}</b><span>${best ? "najlepsza praca (" + money(best[1]) + ")" : "najlepsza praca"}</span></div>
+    <div><b>${own}</b><span>Twoich miejsc na mapie · ${routes} tras</span></div>
+    <div><b>${notes.length}</b><span>notatek w tym miesiącu</span></div></div></div>`;
+}
+/* historia terytoriów z kolejnych aktualizacji warstw wiki */
+let terrHist = [];
+function terrHtml() {
+  if (terrHist.length < 2) return `<div class="panel rise" style="--d:7"><h2>Terytoria rodzin w czasie</h2><p class="note">Wykres pojawi się po dwóch aktualizacjach warstw z wiki (Ustawienia albo Mapa → Aktualizuj). Każda aktualizacja zapisuje liczbę pól każdej rodziny.</p></div>`;
+  const last = terrHist[terrHist.length - 1].counts, top = Object.entries(last).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([f]) => f);
+  const pts = terrHist.slice(-12), max = Math.max(1, ...pts.flatMap((h) => top.map((f) => h.counts[f] || 0)));
+  const COLS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#14b8a6"];
+  const W = 600, H = 160, x = (i) => (pts.length === 1 ? W / 2 : (i / (pts.length - 1)) * (W - 20) + 10), y = (v) => H - 10 - (v / max) * (H - 30);
+  return `<div class="panel rise" style="--d:7"><h2>Terytoria rodzin w czasie <span>${pts.length} aktualizacji</span></h2>
+    <svg class="terr" viewBox="0 0 ${W} ${H}" role="img" aria-label="Liczba pól największych rodzin w kolejnych aktualizacjach">${top.map((f, i) => `<polyline fill="none" stroke="${COLS[i]}" stroke-width="2.5" points="${pts.map((h, j) => `${x(j)},${y(h.counts[f] || 0)}`).join(" ")}"/>`).join("")}</svg>
+    <p class="leg">${top.map((f, i) => `<span><i style="background:${COLS[i]}"></i>Rodzina #${esc(f)} · ${last[f]} pól</span>`).join("")}</p></div>`;
+}
+/* zmiany w grze z wiki */
+let changes = null;
+const CH_TYPE = { feat: ["Nowość", "#22c55e"], update: ["Zmiana", "#3b82f6"], fix: ["Poprawka", "#f59e0b"], remove: ["Usunięto", "#ef4444"] };
+function changesHtml() {
+  const items = (changes && changes.items) || [];
+  return `<div class="panel rise" style="--d:8"><h2>Zmiany w grze <span><button class="btn small" id="ch-sync" type="button">Aktualizuj</button></span></h2>
+    ${items.length ? items.slice(0, 5).map((c, i) => `<details class="ch" ${i === 0 ? "open" : ""}><summary><b>${esc(c.title)}</b>${c.at ? `<time>${new Date(c.at).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}</time>` : ""}</summary>
+      <ul>${c.logs.map(([t, txt]) => `<li><em style="--c:${(CH_TYPE[t] || ["", "#94a3b8"])[1]}">${(CH_TYPE[t] || [t || "Inne"])[0]}</em>${esc(txt)}</li>`).join("")}</ul></details>`).join("") : `<p class="note">Kliknij „Aktualizuj”, żeby pobrać listę zmian z Majestic Wiki.</p>`}</div>`;
+}
+document.addEventListener("click", async (e) => {
+  if (e.target.id !== "ch-sync") return;
+  e.target.disabled = true; e.target.textContent = "Pobieram…";
+  try { const r = await Host.call("changelog_sync"); if (r.ok) changes = await Host.call("changelog"); } catch {}
+  render(false);
+});
 /* cele tygodniowe: czas z logów, pieniądze z zakładki Kasa */
 function loadGoals() { try { return { hours: 10, money: 500000, ...JSON.parse(localStorage.getItem("majestic-cele-v1")) }; } catch { return { hours: 10, money: 500000 }; } }
 function goalsHtml(weekSec, weekStart) {
@@ -233,6 +298,13 @@ function countUp(el) {
   const step = (t) => { const p = Math.min(1, (t - t0) / 1100), e = 1 - Math.pow(1 - p, 4); el.textContent = hours(v * e); if (p < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
+async function loadExtra() {
+  if (!Host.available) return;
+  try { terrHist = await Host.call("wiki_history") || []; } catch {}
+  try { changes = await Host.call("changelog"); } catch {}
+  if (data) render(false);
+}
+loadExtra();
 async function load(first) {
   try { data = await Host.call("sessions"); } catch { data = data || { found: false, sessions: [], logsDir: "" }; }
   render(first);

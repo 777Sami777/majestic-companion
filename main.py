@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.4.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -541,6 +541,33 @@ class Api:
         save_json(os.path.join(DATA_DIR, WIKI_LISTS[slug] + ".json"), out)
         return {"ok": True, "count": len(out["items"])}
 
+    def changelog(self):
+        return load_json(os.path.join(DATA_DIR, "zmiany.json"), None) or load_json(resource("dane", "zmiany.json"), None)
+
+    def changelog_sync(self):
+        """Lista zmian w grze z wiki; zwraca też tytuły nowych wpisów (do powiadomienia)."""
+        script = open(resource("wiki_changelog.js"), encoding="utf-8").read()
+        win = webview.create_window("wiki-zmiany", "https://wiki.gta5majestic.com/pl/servers", hidden=True)
+        data = None
+        try:
+            for _ in range(80):
+                time.sleep(0.5)
+                try:
+                    if win.evaluate_js("document.readyState === 'complete' && !window.__chStarted"):
+                        win.evaluate_js("window.__chStarted = true;" + script)
+                    data = win.evaluate_js("window.__changes || null")
+                except Exception:
+                    data = None
+                if data:
+                    break
+        finally:
+            win.destroy()
+        if not data or data.get("error"):
+            return {"ok": False, "error": (data or {}).get("error", "brak odpowiedzi wiki")}
+        old = {c["title"] for c in (self.changelog() or {}).get("items", [])}
+        save_json(os.path.join(DATA_DIR, "zmiany.json"), {"at": time.time() * 1000, "items": data["items"]})
+        return {"ok": True, "count": len(data["items"]), "new": [c["title"] for c in data["items"] if old and c["title"] not in old]}
+
     def crafting(self):
         """Przepisy kuchenne i crafting frakcji: pobrane z wiki albo dołączone do aplikacji."""
         for path in (CRAFT_FILE, resource("crafting.json")):
@@ -735,15 +762,35 @@ start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
         if not result:
             return None
         path = result if isinstance(result, str) else result[0]
-        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-            z.writestr("dane.json", data_json)
-            for extra in (SETTINGS_FILE, WIKI_FILE):
-                if os.path.exists(extra):
-                    z.write(extra, os.path.basename(extra))
-            if os.path.isdir(SHOTS_DIR):
-                for name in os.listdir(SHOTS_DIR):
-                    z.write(os.path.join(SHOTS_DIR, name), "zrzuty/" + name)
+        _write_backup(path, data_json)
         return path
+
+    @staticmethod
+    def cloud_folders():
+        """Foldery synchronizowane z chmurą, które da się wykryć na tym komputerze."""
+        found = []
+        for env in ("OneDrive", "OneDriveConsumer", "OneDriveCommercial"):
+            p = os.environ.get(env)
+            if p and os.path.isdir(p) and p not in [f["path"] for f in found]:
+                found.append({"name": "OneDrive", "path": p})
+        for p in [os.path.join(HOME, "Google Drive"), os.path.join(HOME, "My Drive")] + [os.path.join(d + ":" + os.sep, n) for d in "GHIJ" for n in ("Mój dysk", "My Drive")]:
+            if os.path.isdir(p):
+                found.append({"name": "Google Drive", "path": p})
+        return found
+
+    def auto_backup(self, data_json):
+        """Codzienna kopia do folderu chmury z Ustawień; trzyma 7 ostatnich."""
+        folder = load_settings().get("cloudDir", "")
+        if not folder or not os.path.isdir(folder):
+            return {"ok": False, "error": "Nie wybrano folderu chmury"}
+        dest = os.path.join(folder, "MajesticCompanion")
+        os.makedirs(dest, exist_ok=True)
+        path = os.path.join(dest, f"majestic-kopia-{dt.date.today()}.zip")
+        _write_backup(path, data_json)
+        old = sorted(f for f in os.listdir(dest) if f.startswith("majestic-kopia-") and f.endswith(".zip"))
+        for f in old[:-7]:
+            os.remove(os.path.join(dest, f))
+        return {"ok": True, "path": path}
 
     def restore(self):
         result = self._window.create_file_dialog(webview.OPEN_DIALOG, file_types=("Kopia zapasowa (*.zip)",))
@@ -767,7 +814,7 @@ start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 
 DEFAULT_SETTINGS = {"shotDirs": [], "overlayKey": "F10", "server": "PL1", "trayOnClose": True,
                     "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True, "compactOverlay": False,
-                    "hotPresets": [1, 2, 3], "autoPayday": False}
+                    "hotPresets": [1, 2, 3], "autoPayday": False, "cloudDir": "", "streamer": False}
 WEBHOOK_RE = re.compile(r"^https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+$")
 VK = {f"F{i}": 0x6F + i for i in range(1, 13)}
 
@@ -778,6 +825,17 @@ def load_settings():
             return {**DEFAULT_SETTINGS, **json.load(f)}
     except (FileNotFoundError, ValueError):
         return dict(DEFAULT_SETTINGS)
+
+
+def _write_backup(path, data_json):
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("dane.json", data_json)
+        for extra in (SETTINGS_FILE, WIKI_FILE):
+            if os.path.exists(extra):
+                z.write(extra, os.path.basename(extra))
+        if os.path.isdir(SHOTS_DIR):
+            for name in os.listdir(SHOTS_DIR):
+                z.write(os.path.join(SHOTS_DIR, name), "zrzuty/" + name)
 
 
 def load_json(path, default):

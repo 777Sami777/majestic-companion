@@ -33,11 +33,35 @@
 .add{display:grid;grid-template-columns:120px 1fr auto;gap:10px;margin-top:14px}
 .name{display:flex;gap:10px;align-items:end;margin-bottom:18px}
 .name .field{flex:1;max-width:340px}
+
+.pc-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;align-items:start;margin-top:14px}
+.card-p{display:grid;grid-template-columns:130px 1fr;gap:16px}
+.photo{width:130px;height:170px;border-radius:6px;border:1px dashed var(--line-2);background:var(--card);display:grid;place-items:center;overflow:hidden;color:var(--text-3);font-weight:600}
+.photo img{width:100%;height:100%;object-fit:cover}
+.pc-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pc-form .wide{grid-column:1/-1}
+.pc-form textarea{min-height:90px}
+.btns-row{display:flex;gap:8px;align-items:center;margin-top:12px}
+.hint-s{color:var(--text-3);font-size:12.5px}
+.gen{min-height:110px;padding:12px 14px;border-radius:6px;background:var(--card);margin-top:10px}
+.gen b{font:600 19px var(--display);display:block}
+.gen span{color:var(--text-3);font-size:13px}
+.gen p{margin:8px 0 0;line-height:1.5}
+.dict{display:grid;grid-template-columns:200px 1fr;gap:8px 16px;margin:0}
+.dict dt{font-weight:700}
+.dict dd{margin:0;color:var(--text-2)}
+.guide{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.guide label{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:6px;background:var(--card);cursor:pointer}
+.guide input{margin-top:3px;width:17px;height:17px}
+.guide b{display:block;font-weight:600}
+.guide small{color:var(--text-3)}
+.guide .done b{text-decoration:line-through;color:var(--text-3)}
+@media (max-width:1000px){.pc-grid,.card-p{grid-template-columns:1fr}.dict{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="hero rise"><div><h1>Teksty RP</h1><p class="sub">Kliknij tekst, a trafi do schowka. W grze wklejasz go w czat (Ctrl+V). <b>{imię}</b> zamienia się na imię postaci, którą wpiszesz niżej.</p></div></div>
+  <div class="hero rise"><div><h1>Postać i RP</h1><p class="sub">Kliknij tekst, a trafi do schowka. W grze wklejasz go w czat (Ctrl+V). <b>{imię}</b> zamienia się na imię postaci, którą wpiszesz niżej.</p></div></div>
   <div class="name rise" style="--d:1"><label class="field"><span>Imię postaci, do której mówisz</span><input type="text" id="target" maxlength="40" placeholder="np. John Doe"></label></div>
   <div class="chips rise" style="--d:2;margin-bottom:16px" id="tabs"></div>
   <section class="panel rise" style="--d:3"><div class="lines" id="lines"></div>
@@ -50,6 +74,34 @@
       <button class="btn primary">Zapisz</button>
     </form>
     <ol class="journal" id="journal"></ol>
+  </section>
+
+  <div class="pc-grid">
+  <section class="panel rise" style="--d:4"><h2>Karta postaci</h2>
+    <div class="card-p">
+      <button class="photo" id="pc-photo" type="button" title="Dodaj zdjęcie postaci" aria-label="Zdjęcie postaci"><span>+ Zdjęcie</span></button>
+      <form id="pc" class="pc-form" autocomplete="off">
+        <label class="field"><span>Imię i nazwisko</span><input type="text" name="name" maxlength="50"></label>
+        <label class="field"><span>Wiek</span><input type="number" name="age" min="16" max="99"></label>
+        <label class="field"><span>Frakcja / organizacja</span><input type="text" name="faction" maxlength="40"></label>
+        <label class="field"><span>Praca</span><input type="text" name="job" maxlength="40"></label>
+        <label class="field wide"><span>Historia postaci</span><textarea name="story" maxlength="2000" placeholder="Skąd jest, co robiła, czego chce w Los Santos…"></textarea></label>
+      </form>
+    </div>
+    <div class="btns-row"><button class="btn ghost small" id="pc-copy" type="button">Kopiuj kartę</button><span class="hint-s">Zapisuje się sama.</span></div>
+  </section>
+  <section class="panel rise" style="--d:5"><h2>Generator postaci</h2>
+    <div class="chips" id="gen-origin"><button class="chip on" data-o="pl" type="button">Polska</button><button class="chip" data-o="us" type="button">USA</button><button class="chip" data-o="latino" type="button">Latynos</button><button class="chip" data-o="ru" type="button">Europa Wsch.</button></div>
+    <div class="gen" id="gen"></div>
+    <div class="btns-row"><button class="btn primary small" id="gen-roll" type="button">Losuj</button><button class="btn ghost small" id="gen-use" type="button">Wpisz do karty</button></div>
+  </section>
+  </div>
+  <section class="panel rise" style="--d:6"><h2>Słownik pojęć RP <span id="dict-count"></span></h2>
+    <input type="text" id="dict-q" placeholder="Szukaj pojęcia, np. OOC, PG, MG…" aria-label="Szukaj pojęcia" style="margin-bottom:10px">
+    <dl class="dict" id="dict"></dl>
+  </section>
+  <section class="panel rise" style="--d:7"><h2>Przewodnik dla początkujących <span id="guide-count"></span></h2>
+    <ul class="guide" id="guide"></ul>
   </section>
 </div>
 <script src="../bridge.js"></script>
@@ -111,6 +163,108 @@ $("#add").addEventListener("submit", (e) => {
   U.save(KEY, custom); e.target.text.value = ""; render(); U.toast("Dodano tekst");
 });
 render();
+
+/* ---------- karta postaci ---------- */
+const PKEY = "majestic-postac-v1";
+let pc = U.load(PKEY, {}), shotsBase = "";
+function renderPc() {
+  const f = $("#pc");
+  ["name", "age", "faction", "job", "story"].forEach((k) => (f[k].value = pc[k] || ""));
+  $("#pc-photo").innerHTML = pc.photo && shotsBase ? `<img src="${shotsBase + esc(pc.photo)}" alt="Zdjęcie postaci">` : `<span>+ Zdjęcie</span>`;
+}
+$("#pc").addEventListener("input", (e) => { pc[e.target.name] = e.target.value; U.save(PKEY, pc); });
+$("#pc-photo").addEventListener("click", async () => {
+  if (!Host.available) return U.toast("Zdjęcia działają w aplikacji");
+  const r = await Host.call("pick_image");
+  if (r && r[0]) { pc.photo = r[0]; U.save(PKEY, pc); renderPc(); }
+});
+$("#pc-copy").addEventListener("click", () => U.copy([`Postać: ${pc.name || "—"}${pc.age ? ", " + pc.age + " lat" : ""}`, pc.faction ? "Frakcja: " + pc.faction : "", pc.job ? "Praca: " + pc.job : "", pc.story ? "\n" + pc.story : ""].filter(Boolean).join("\n"), "Skopiowano kartę postaci"));
+if (Host.available) Host.call("shots_base").then((b) => { shotsBase = b; renderPc(); }).catch(() => {});
+renderPc();
+
+/* ---------- generator postaci ---------- */
+const NAMES = {
+  pl: { m: ["Marek", "Tomasz", "Kamil", "Paweł", "Dawid", "Krystian", "Szymon", "Bartek", "Adrian", "Michał"], f: ["Natalia", "Kinga", "Julia", "Oliwia", "Wiktoria", "Paulina", "Zuzanna", "Karolina"], s: ["Nowak", "Kowalski", "Wiśniewski", "Zieliński", "Szymański", "Woźniak", "Kaczmarek", "Mazur", "Krawczyk", "Grabowski"] },
+  us: { m: ["Jake", "Tyler", "Mason", "Logan", "Ryan", "Brandon", "Austin", "Cole"], f: ["Ashley", "Madison", "Kayla", "Brooke", "Taylor", "Megan"], s: ["Miller", "Carter", "Hayes", "Brooks", "Walker", "Reed", "Parker", "Hughes"] },
+  latino: { m: ["Carlos", "Diego", "Luis", "Mateo", "Javier", "Rafael", "Miguel"], f: ["Lucia", "Valeria", "Camila", "Sofia", "Isabela"], s: ["Ramirez", "Herrera", "Castillo", "Mendoza", "Ortega", "Vargas", "Rojas"] },
+  ru: { m: ["Viktor", "Dmitri", "Oleg", "Andrei", "Nikolai", "Pavel"], f: ["Irina", "Katya", "Alina", "Daria", "Olga"], s: ["Volkov", "Sokolov", "Petrov", "Kuznetsov", "Morozov", "Lebedev"] },
+};
+const PAST = ["dorastał w małym miasteczku i uciekł do Los Santos za pracą", "przyjechał do Los Santos po zwolnieniu z wojska", "po wyjściu z więzienia szuka drugiej szansy", "przyjechał za dziewczyną, która go zostawiła po tygodniu", "był mechanikiem w Sandy Shores i marzy o własnym warsztacie", "studiował prawo, ale rzucił studia dla szybkich pieniędzy", "ma długi u niewłaściwych ludzi i musi je szybko spłacić", "przyjechał odnaleźć zaginionego brata"];
+const GOAL = ["chce otworzyć własny biznes", "chce dostać się do LSPD", "marzy o domu w Vinewood Hills", "chce zbudować własną rodzinę na ulicy", "chce zarobić na legalnych pracach i żyć spokojnie", "szuka zemsty, ale nikomu o tym nie mówi"];
+const TRAIT = ["spokojny i ostrożny", "porywczy, ale lojalny", "gadatliwy i zabawny", "skryty i nieufny", "uparty perfekcjonista", "pomocny dla każdego"];
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+let origin = "pl", gen = null;
+function roll() {
+  const N = NAMES[origin], female = Math.random() < 0.35;
+  let sur = pick(N.s);
+  if (origin === "pl" && female) sur = sur.replace(/ski$/, "ska").replace(/cki$/, "cka");
+  if (origin === "ru" && female) sur += "a";
+  gen = { name: `${pick(female ? N.f : N.m)} ${sur}`, age: 19 + Math.floor(Math.random() * 22), story: `${female ? "Ona" : "On"} ${pick(PAST).replace("dorastał", female ? "dorastała" : "dorastał").replace("uciekł", female ? "uciekła" : "uciekł").replace("przyjechał", female ? "przyjechała" : "przyjechał").replace("był ", female ? "była " : "był ").replace("studiował", female ? "studiowała" : "studiował").replace("rzucił", female ? "rzuciła" : "rzucił")}. Teraz ${pick(GOAL)}. Charakter: ${pick(TRAIT)}.` };
+  $("#gen").innerHTML = `<b>${esc(gen.name)}</b><span>${gen.age} lat</span><p>${esc(gen.story)}</p>`;
+}
+$("#gen-origin").addEventListener("click", (e) => { const b = e.target.closest("[data-o]"); if (!b) return; origin = b.dataset.o; document.querySelectorAll("#gen-origin .chip").forEach((c) => c.classList.toggle("on", c === b)); roll(); });
+$("#gen-roll").addEventListener("click", roll);
+$("#gen-use").addEventListener("click", () => { if (!gen) return; Object.assign(pc, { name: gen.name, age: gen.age, story: gen.story }); U.save(PKEY, pc); renderPc(); U.toast("Wpisano do karty postaci"); });
+roll();
+
+/* ---------- słownik pojęć RP ---------- */
+const DICT = [
+  ["RP (Roleplay)", "Odgrywanie postaci: zachowujesz się tak, jak zachowywałaby się Twoja postać w świecie gry."],
+  ["IC (In Character)", "Wszystko, co dzieje się w świecie gry i dotyczy Twojej postaci."],
+  ["OOC (Out Of Character)", "Sprawy spoza gry, Ty jako gracz. Na czacie zwykle w podwójnych nawiasach (( ))."],
+  ["MG (MetaGaming)", "Używanie w grze wiedzy zdobytej poza nią, np. ze streama albo Discorda. Zabronione."],
+  ["PG (PowerGaming)", "Robienie rzeczy niemożliwych w realnym życiu albo zmuszanie innych do akcji bez szansy reakcji. Zabronione."],
+  ["DM (DeathMatch)", "Atakowanie lub zabijanie bez powodu RP. Zabronione."],
+  ["RDM (Random DeathMatch)", "Zabicie przypadkowej osoby bez żadnej sytuacji RP."],
+  ["VDM (Vehicle DeathMatch)", "Celowe rozjeżdżanie ludzi autem bez powodu RP."],
+  ["NLR (New Life Rule)", "Po śmierci postać nie pamięta okoliczności śmierci i nie wraca od razu na to miejsce."],
+  ["CK (Character Kill)", "Trwała śmierć postaci, koniec jej historii."],
+  ["FearRP", "Odgrywanie strachu o życie, np. gdy ktoś celuje w Ciebie z broni."],
+  ["/me", "Opis czynności Twojej postaci, np. /me wyciąga telefon."],
+  ["/do", "Opis otoczenia albo stanu, np. /do Na stole leży pistolet."],
+  ["/try", "Próba czynności z losowym wynikiem (udało się / nie udało)."],
+  ["/b", "Krótka wiadomość OOC na czacie lokalnym."],
+  ["Revenge Kill", "Zemsta za własną śmierć, łamiąca NLR. Zabroniona."],
+  ["Combat Logging", "Wyjście z gry w trakcie akcji, żeby uniknąć konsekwencji. Zabronione."],
+  ["Zielona strefa", "Miejsce bezpieczne, np. szpital albo urząd, gdzie nie wolno atakować."],
+  ["Kontrabanda", "Nielegalne przedmioty, np. skrytki rozmieszczone po mapie."],
+  ["Kapt (capture)", "Przejmowanie terytorium przez rodziny w walce."],
+  ["Napad", "Zorganizowana akcja przestępcza, np. na sklep albo bank, z określonymi zasadami."],
+  ["PayDay", "Wypłata co pełną godzinę gry: pensja, podatki i odsetki."],
+  ["Admin / Report", "Zgłoszenie problemu lub łamania zasad do administracji przez /report."],
+];
+function renderDict() {
+  const q = $("#dict-q").value.trim().toLowerCase();
+  const list = DICT.filter(([t, d]) => !q || (t + " " + d).toLowerCase().includes(q));
+  $("#dict-count").textContent = list.length;
+  $("#dict").innerHTML = list.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join("") || `<dd class="hint-s">Brak takiego pojęcia.</dd>`;
+}
+$("#dict-q").addEventListener("input", renderDict);
+renderDict();
+
+/* ---------- przewodnik dla początkujących ---------- */
+const GKEY = "majestic-przewodnik-v1";
+const GUIDE = [
+  ["Zrób dowód osobisty w urzędzie (GOV)", "Bez dokumentów nie weźmiesz większości prac."],
+  ["Zdobądź prawo jazdy kategorii B", "Szkoła jazdy jest zaznaczona na mapie (Służby państwowe)."],
+  ["Załóż konto w banku i zrób kartę", "Pieniądze w banku nie przepadną przy śmierci."],
+  ["Kup telefon i zapisz pierwsze kontakty", "Zapisz je też w zakładce Kontakty, z frakcją i notatką."],
+  ["Weź pierwszą pracę: górnik, drwal, rolnik albo rybak", "Wpisuj zarobki w zakładce Zarobki, żeby zobaczyć stawkę na godzinę."],
+  ["Spróbuj zbieractwa: kraby, glony, jagody", "Mapa → Zbieractwo → Wyznacz trasę przez te strefy."],
+  ["Odbierz pierwszy PayDay", "Włącz automatyczny PayDay w Ustawieniach."],
+  ["Kup pierwsze auto", "Rynek → zaznacz auto → planer pokaże, ile dni grania brakuje."],
+  ["Wynajmij albo kup mieszkanie", "Rynek → Nieruchomości, przycisk „Na mapie”."],
+  ["Poznaj zasady RP", "Przeczytaj słownik wyżej: MG, PG, DM i NLR to podstawa."],
+  ["Dołącz do frakcji albo rodziny", "Ustaw ją w karcie postaci, a w Ekipie zaplanuj zbiórki."],
+  ["Osiągnij 5 poziom postaci", "Więcej prac i możliwości otwiera się z każdym poziomem."],
+];
+function renderGuide() {
+  const done = U.load(GKEY, []);
+  $("#guide-count").textContent = `${done.length}/${GUIDE.length}`;
+  $("#guide").innerHTML = GUIDE.map(([t, h], i) => `<li class="${done.includes(i) ? "done" : ""}"><label><input type="checkbox" data-g="${i}" ${done.includes(i) ? "checked" : ""}><span><b>${esc(t)}</b><small>${esc(h)}</small></span></label></li>`).join("");
+}
+$("#guide").addEventListener("change", (e) => { const i = +e.target.dataset.g; const d = U.load(GKEY, []); U.save(GKEY, e.target.checked ? [...new Set([...d, i])] : d.filter((x) => x !== i)); renderGuide(); });
+renderGuide();
 })();
 </script>
 </body>
