@@ -130,6 +130,7 @@ function afterGame(was, now) {
     if (min >= 5) {
       a.notify("Koniec sesji: " + min + " min", "Ile zarobiłeś? Otwórz zakładkę Kasa, czas już jest wpisany.");
       show("zarobki", { sessionMin: min });
+      sessionNote(min, was.session.server);
     }
   }
   // przypomnienie o przerwie raz na sesję
@@ -330,11 +331,57 @@ async function dailyJobs() {
     try { const r = await a.changelog_sync(); if (r.ok && r.new.length) a.notify("Nowa łatka Majestic", r.new[0] + " · szczegóły w Statystykach"); } catch {}
   }
 }
+/* notatka po sesji: trafia do dziennika postaci */
+function sessionNote(min, server) {
+  const o = document.createElement("div");
+  o.style.cssText = "position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.5);display:grid;place-items:center";
+  o.innerHTML = `<form role="dialog" aria-modal="true" aria-label="Notatka po sesji" style="width:min(460px,92vw);background:var(--panel-solid,#0b1428);color:var(--text,#eee);border:1px solid var(--line-2);border-radius:8px;padding:20px"><h2 style="margin:0 0 4px;font-family:Bahnschrift,Segoe UI">Co się działo?</h2><p style="margin:0 0 12px;color:var(--text-3)">Sesja ${min} min${server ? " · " + server : ""}. Wpis trafi do dziennika postaci.</p><textarea name="t" rows="4" maxlength="2000" style="width:100%;box-sizing:border-box" aria-label="Notatka z sesji"></textarea><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn ghost small" type="button" data-x>Pomiń</button><button class="btn primary small">Zapisz</button></div></form>`;
+  const close = () => o.remove();
+  o.querySelector("[data-x]").onclick = close;
+  o.querySelector("form").onsubmit = (e) => {
+    e.preventDefault(); const t = e.target.t.value.trim(); close(); if (!t) return;
+    const list = store.get("majestic-dziennik-v1", []);
+    list.push({ id: Date.now().toString(36), day: new Date().toISOString().slice(0, 10), t: `[Sesja ${min} min${server ? ", " + server : ""}] ${t}`, at: Date.now() });
+    store.set("majestic-dziennik-v1", list); frames.rp?.contentWindow?.location.reload();
+  };
+  document.body.appendChild(o); o.querySelector("textarea").focus();
+}
+/* licznik zbierania: Ctrl+Shift+Z start/stop, Ctrl+Shift+X +1, sterowany też z widżetu */
+const CKEY = "majestic-zbieranie-v1";
+window.__collect = (cmd, arg) => {
+  const c = { job: "Zbieractwo", price: 0, count: 0, on: false, start: 0, ...store.get(CKEY, {}) }, a = api();
+  if (cmd === "set") Object.assign(c, arg || {});
+  if (cmd === "add") c.count = Math.max(0, c.count + (+arg || 1));
+  if (cmd === "toggle") cmd = c.on ? "stop" : "start";
+  if (cmd === "start") { Object.assign(c, { on: true, start: Date.now(), count: 0 }); a?.notify("Licznik zbierania", `Start: ${c.job}. Ctrl+Shift+X dodaje sztukę.`); }
+  if (cmd === "stop" && c.on) {
+    const min = Math.max(1, Math.round((Date.now() - c.start) / 60000)), amt = Math.round(c.count * c.price);
+    c.on = false;
+    if (c.count) {
+      const log = store.get("majestic-zarobki-v1", []);
+      log.push({ id: Date.now().toString(36), job: c.job, amt, min, at: Date.now(), qty: c.count, price: c.price });
+      store.set("majestic-zarobki-v1", log); frames.zarobki?.contentWindow?.location.reload();
+    }
+    a?.notify("Koniec zbierania", c.count ? `${c.job}: ${c.count} szt. w ${min} min${amt ? " = $" + amt.toLocaleString("pl-PL") : ""}. Zapisane w Zarobkach.` : "Nic nie zebrano, nic nie zapisuję.");
+  }
+  store.set(CKEY, c);
+  return c;
+};
+/* majątek: przypomnienie o opłatach, które mijają dziś albo już minęły */
+function billCheck() {
+  const a = api(); if (!a) return;
+  const today = new Date().toDateString(); if (store.get("majestic-oplaty-dzien-v1", "") === today) return;
+  store.set("majestic-oplaty-dzien-v1", today);
+  const due = store.get("majestic-majatek-v1", []).filter((x) => x.every && x.paid + x.every * 86400000 < Date.now() + 86400000);
+  if (due.length) a.notify("Opłaty do zrobienia", due.map((x) => x.name).join(", ") + " · szczegóły w Zarobkach");
+}
+setTimeout(billCheck, 60000); setInterval(billCheck, 3600000);
 const TOUR = [
   ["Witaj w Majestic Companion", "Krótki przegląd w 5 krokach. Możesz go pominąć i włączyć ponownie w Ustawieniach."],
   ["Zakładki po lewej", "Ctrl+1…0 przełącza zakładki. Dziś pokazuje zarobek, minutniki, kalendarz i zadania."],
   ["Szukaj wszędzie", "Ctrl+Spacja otwiera wyszukiwarkę: zakładki, pojazdy, nieruchomości, przepisy."],
   ["W grze", "Ctrl+Shift+N to szybka notatka, Ctrl+Shift+1…3 minutniki, F10 nakładka z PayDay."],
+  ["Licznik zbierania", "Ctrl+Shift+Z start/stop, Ctrl+Shift+X +1 sztuka. Po zatrzymaniu zarobek zapisze się sam. Widżet pokazuje wszystko nad grą."],
   ["Ekipa", "Wpisz ten sam kod co znajomi w zakładce Mapa → Ekipa: wspólne znaczniki, czat i ranking tygodnia."],
 ];
 function showTour() {

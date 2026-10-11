@@ -1180,6 +1180,10 @@ function gatherRoute() {
     ? [it.c.reduce((a, p) => a + p[1], 0) / it.c.length, it.c.reduce((a, p) => a + p[0], 0) / it.c.length]
     : [it.c[1], it.c[0]]);
   if (left.length < 2) return toast("Za mało stref, żeby wyznaczyć trasę");
+  const label = f === "Owoce morza" ? "kraby" : f === "Wodorosty" ? "glony" : (f || "zbieractwo").toLowerCase();
+  routeThrough(left, "Zbieranie: " + label, GATH_COL[f] || "#22c55e", "stref");
+}
+function routeThrough(left, name, color, what) {
   // najbliższy sąsiad od strefy najbardziej na zachód: prosto i wystarczająco dobrze dla kilkunastu punktów
   left.sort((a, b) => a[1] - b[1]);
   const pts = [left.shift()];
@@ -1189,13 +1193,17 @@ function gatherRoute() {
     left.forEach((p, i) => { const d = Math.hypot(p[0] - last[0], p[1] - last[1]); if (d < bd) { bd = d; bi = i; } });
     pts.push(left.splice(bi, 1)[0]);
   }
-  const label = f === "Owoce morza" ? "kraby" : f === "Wodorosty" ? "glony" : (f || "zbieractwo").toLowerCase();
-  const item = { id: uid(), kind: "route", pts: pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color: GATH_COL[f] || "#22c55e", name: "Zbieranie: " + label };
+  const item = { id: uid(), kind: "route", pts: pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color, name };
   (state.drawings ||= []).push(item);
   save(); renderDrawings();
   map.flyToBounds(L.latLngBounds(item.pts), { padding: [80, 80], duration: 1 });
-  toast(`Trasa przez ${pts.length} stref: ${fmtDist(dist(item.pts))}. Zapisana w „Trasy i strefy”`);
+  toast(`Trasa przez ${pts.length} ${what}: ${fmtDist(dist(item.pts))}. Zapisana w „Trasy i strefy”`);
 }
+$("#fav-route").addEventListener("click", () => {
+  const favs = state.markers.filter((m) => m.fav);
+  if (favs.length < 2) return toast("Dodaj do ulubionych co najmniej 2 miejsca");
+  routeThrough(favs.map((m) => [m.y, m.x]), "Objazd ulubionych", "#f59e0b", "miejsc");
+});
 $("#wiki-layers").addEventListener("click", (e) => { if (e.target.closest("[data-gath-route]")) gatherRoute(); });
 
 /* ---------- przypomnienie o odnowieniu strefy zbierania ---------- */
@@ -1309,8 +1317,9 @@ async function crewOpen(msg) {
 }
 function crewApply(ev) {
   if (!ev || ev.from === crewId) return;
-  if (ev.op === "hello") { crewPing(); return crewSnapshot(); }
+  if (ev.op === "hello") { crewPing(); const t = U.load(CREW_KEY, {}).team; if (t) crewSend({ op: "team", team: t }); return crewSnapshot(); }
   if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20), h: +ev.h || 0, net: +ev.net || 0 }; return renderCrewPeople(); }
+  if (ev.op === "team" && ev.team) { const t = { name: String(ev.team.name || "").slice(0, 32), tag: String(ev.team.tag || "").slice(0, 5), color: /^#[0-9a-f]{6}$/i.test(ev.team.color) ? ev.team.color : "#2563eb" }; U.save(CREW_KEY, { ...U.load(CREW_KEY, {}), team: t }); return renderCrewTeam(); }
   if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
   if (ev.op === "pin" && Number.isFinite(ev.x) && Number.isFinite(ev.y)) return showCrewPin(ev);
   if (ev.op === "store" && Array.isArray(ev.items)) { window.parent.postMessage({ __toEkipa: { store: ev.items.slice(0, 200), by: ev.by } }, "*"); return; }
@@ -1385,6 +1394,7 @@ setInterval(crewPing, 60000);
 function renderCrewPeople() {
   const el = document.getElementById("crew-people"); if (!el) return;
   const now = Date.now(), list = Object.entries(crewSeen).filter(([, v]) => now - v.t < 180000).sort((a, b) => b[1].on - a[1].on);
+  try { localStorage.setItem("majestic-ekipa-online-v1", JSON.stringify({ n: list.filter(([, v]) => v.on).length, all: list.length, t: now })); } catch {}
   el.innerHTML = list.length ? list.map(([n, v]) => `<li class="${v.on ? "on" : ""}"><i></i><span>${esc(n)}</span><small>${v.on ? "10-8 · " + esc(v.srv || "w grze") : "10-7 · poza grą"}</small></li>`).join("") : `<li class="none">Nikt inny nie jest teraz połączony.</li>`;
   const rk = document.getElementById("crew-rank"); if (!rk) return;
   const me = crewNick(); let myNet = 0; try { const ws = weekStart(); myNet = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= ws).reduce((a, l) => a + l.amt, 0); } catch {}
@@ -1400,6 +1410,18 @@ function renderCrewChat() {
   el.innerHTML = crewChat.map((m) => `<li><b>${esc(m.by)}</b> <span>${esc(m.t)}</span></li>`).join("") || `<li class="none">Brak wiadomości. Napisz coś do ekipy.</li>`;
   el.scrollTop = el.scrollHeight;
 }
+function renderCrewTeam() {
+  const el = document.getElementById("crew-team"); if (!el) return;
+  const t = U.load(CREW_KEY, {}).team || { name: "", tag: "", color: "#2563eb" };
+  el.innerHTML = `${t.name ? `<p style="margin:8px 0 4px;font:700 15px Bahnschrift,sans-serif;color:${t.color}">${t.tag ? "[" + esc(t.tag) + "] " : ""}${esc(t.name)}</p>` : ""}
+    <details><summary class="link">Profil ekipy</summary><form id="team-form" class="crew-say" autocomplete="off" style="flex-wrap:wrap">
+    <input name="name" maxlength="32" placeholder="Nazwa ekipy" aria-label="Nazwa ekipy" value="${esc(t.name)}"><input name="tag" maxlength="5" placeholder="Skrót" aria-label="Skrót ekipy" value="${esc(t.tag)}" style="max-width:70px">
+    <input name="color" type="color" aria-label="Kolor ekipy" value="${t.color}" style="max-width:44px;padding:0"><button class="copy-btn">Zapisz u wszystkich</button></form></details>`;
+  el.querySelector("#team-form").onsubmit = (e) => {
+    e.preventDefault(); const f = e.target, team = { name: f.name.value.trim(), tag: f.tag.value.trim(), color: f.color.value };
+    U.save(CREW_KEY, { ...U.load(CREW_KEY, {}), team }); crewSend({ op: "team", team }); renderCrewTeam(); toast("Profil ekipy wysłany");
+  };
+}
 function showCrewPin(ev) {
   const ll = toLL(ev.x, ev.y), by = String(ev.by || "Ekipa").slice(0, 24);
   const m = L.marker(ll, { icon: L.divIcon({ className: "", iconSize: [26, 26], html: `<div class="crew-pin"><i></i></div>` }), keyboard: false })
@@ -1412,6 +1434,7 @@ function renderCrew(st) {
   $("#crew-box").innerHTML = crew
     ? `<p class="crew-st ${st}"><i></i>${st === "on" ? "Połączono z mapą ekipy" : st === "err" ? "Brak połączenia, ponawiam…" : "Łączenie…"}</p>
        <small>Twoje znaczniki widzi każdy z tym samym kodem. Szyfrowane kodem ekipy.</small>
+       <div id="crew-team"></div>
        <ul class="crew-people" id="crew-people"></ul><h3 style="margin:10px 0 4px;font-size:12px;opacity:.75">Ranking tygodnia (godziny · na czysto)</h3><ul class="crew-people" id="crew-rank"></ul>
        <button class="link" id="crew-pin-btn" type="button">Pokaż ekipie, gdzie jestem (10 min)</button>
        <ul class="crew-chat" id="crew-chat" aria-live="polite"></ul>
@@ -1422,6 +1445,7 @@ function renderCrew(st) {
          <input name="nick" placeholder="Twój nick w ekipie" aria-label="Nick" maxlength="24" value="${esc(s.nick || "")}">
          <button class="copy-btn">Połącz</button></form>
        <small>Wszyscy wpisują ten sam kod. Znaczniki dodane przez jedną osobę od razu pojawią się u reszty.</small>`;
+  renderCrewTeam();
 }
 $("#crew-box").addEventListener("submit", (e) => {
   e.preventDefault();

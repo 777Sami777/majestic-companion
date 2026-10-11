@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.5.0"
+APP_VERSION = "2.6.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -377,9 +377,23 @@ class Api:
         sw = ctypes.windll.user32.GetSystemMetrics(0)
         self._widget = webview.create_window(
             "Majestic Widget", file_url(resource("web", "widget.html")), js_api=self,
-            width=330, height=74, x=sw - 350, y=16, frameless=True, on_top=True, resizable=False,
+            width=340, height=560, x=sw - 360, y=16, frameless=True, on_top=True, resizable=False,
             background_color="#0c0e13", easy_drag=True)
         self._widget.events.closed += lambda: setattr(self, "_widget", None)
+        return True
+
+    def widget_resize(self, w, h):
+        if getattr(self, "_widget", None):
+            self._widget.resize(int(w), int(h))
+        return True
+
+    def hot_timer(self, n):
+        self._window.evaluate_js(f"window.__hotTimer && window.__hotTimer({int(n)})")
+        return True
+
+    def collect(self, cmd, arg=None):
+        """Licznik zbierania żyje w głównym oknie; widżet i skróty tylko wysyłają polecenia."""
+        self._window.evaluate_js(f"window.__collect && window.__collect({json.dumps(str(cmd))}, {json.dumps(arg)})")
         return True
 
     def close_widget(self):
@@ -888,6 +902,8 @@ def start_hotkey(api):
         if vk:
             user32.RegisterHotKey(None, 1, 0x4000, vk)  # MOD_NOREPEAT
         user32.RegisterHotKey(None, 2, 0x4000 | 0x0002 | 0x0004, 0x4E)  # Ctrl+Shift+N: szybka notatka
+        user32.RegisterHotKey(None, 20, 0x4000 | 0x0002 | 0x0004, 0x5A)  # Ctrl+Shift+Z: start/stop licznika zbierania
+        user32.RegisterHotKey(None, 21, 0x4000 | 0x0002 | 0x0004, 0x58)  # Ctrl+Shift+X: +1 do licznika
         for n in (1, 2, 3):  # Ctrl+Shift+1..3: pierwsze trzy szybkie minutniki
             user32.RegisterHotKey(None, 10 + n, 0x4000 | 0x0002 | 0x0004, 0x30 + n)
         msg = wintypes.MSG()
@@ -896,6 +912,8 @@ def start_hotkey(api):
                 try:
                     if msg.wParam == 2:
                         api.toggle_note()
+                    elif msg.wParam in (20, 21):
+                        api.collect("toggle" if msg.wParam == 20 else "add", 1)
                     elif 11 <= msg.wParam <= 13:
                         api._window.evaluate_js(f"window.__hotTimer && window.__hotTimer({msg.wParam - 10})")
                     else:
@@ -903,7 +921,7 @@ def start_hotkey(api):
                 except Exception:
                     pass
         user32.UnregisterHotKey(None, 1)
-        for hid in (2, 11, 12, 13):
+        for hid in (2, 11, 12, 13, 20, 21):
             user32.UnregisterHotKey(None, hid)
 
     threading.Thread(target=loop, daemon=True).start()

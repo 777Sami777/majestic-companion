@@ -91,6 +91,18 @@
     </form>
   </section>
   <div id="out"></div>
+  <div class="two-col" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:14px">
+  <section class="panel rise" style="--d:8"><h2>Cele zakupowe</h2>
+    <p class="hint">Na co zbierasz? Postęp liczy się z odłożonej kwoty i zarobków na czysto od dodania celu.</p>
+    <form id="goal-add" class="row-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input name="name" placeholder="Np. Pegassi Zentorno" aria-label="Na co zbierasz" required style="flex:2;min-width:140px"><input name="price" type="number" min="1" step="1" placeholder="Cena ($)" aria-label="Cena" required style="flex:1;min-width:90px"><input name="base" type="number" min="0" step="1" placeholder="Już mam ($)" aria-label="Już odłożone" style="flex:1;min-width:90px"><button class="btn primary small">Dodaj</button></form>
+    <ul class="rows" id="goals-buy" style="list-style:none;padding:0;margin:12px 0 0;display:grid;gap:10px"></ul>
+  </section>
+  <section class="panel rise" style="--d:8"><h2>Majątek <span id="assets-sum"></span></h2>
+    <p class="hint">Auta, domy i biznesy z wartością i opłatą. Przypomnę, gdy zbliża się termin.</p>
+    <form id="asset-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input name="name" placeholder="Np. Dom 1556" aria-label="Nazwa" required style="flex:2;min-width:120px"><input name="value" type="number" min="0" step="1" placeholder="Wartość ($)" aria-label="Wartość" style="flex:1;min-width:90px"><input name="fee" type="number" min="0" step="1" placeholder="Opłata ($)" aria-label="Opłata" style="flex:1;min-width:80px"><input name="every" type="number" min="0" step="1" placeholder="co ile dni" aria-label="Co ile dni opłata" style="width:90px"><button class="btn primary small">Dodaj</button></form>
+    <ul id="assets" style="list-style:none;padding:0;margin:12px 0 0;display:grid;gap:8px"></ul>
+  </section>
+  </div>
   <section class="panel rise" style="--d:8"><h2>Kalkulator craftingu</h2>
     <p class="hint">Wpisz przepis raz: co powstaje, z jakich materiałów i ile one kosztują. Potem ustaw liczbę sztuk, a kalkulator policzy materiały, koszt i zysk.</p>
     <div class="craft">
@@ -178,6 +190,35 @@ $("#add").addEventListener("submit", (e) => {
   U.save(KEY, log); f.amt.value = ""; f.min.value = ""; f.qty.value = ""; updateCount(); render();
   U.toast(mode === "exp" ? `Wydatek: ${job} ${money(-amt)}` : `Zapisano: ${job} ${money(amt)}`);
 });
+/* cele zakupowe */
+const GBKEY = "majestic-cele-zakupy-v1";
+function goalProgress(g) { return (g.base || 0) + log.filter((l) => l.at >= g.at).reduce((a, l) => a + l.amt, 0); }
+function renderBuy() {
+  const gs = U.load(GBKEY, []);
+  $("#goals-buy").innerHTML = gs.map((g) => { const have = goalProgress(g), pct = Math.max(0, Math.min(100, (have / g.price) * 100));
+    return `<li><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(g.name)}</b><span>${money(Math.max(0, have))} / ${money(g.price)}${pct >= 100 ? " · stać cię!" : ""} <button class="x" data-gdel="${g.id}" title="Usuń cel" aria-label="Usuń cel">×</button></span></div><div style="height:8px;border-radius:4px;background:var(--card-2);margin-top:6px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:${pct >= 100 ? "#22c55e" : "var(--accent)"}"></i></div>${pct < 100 ? `<small style="color:var(--text-3)">brakuje ${money(g.price - have)}</small>` : ""}</li>`; }).join("") || `<li class="muted">Brak celów. Dodaj auto albo dom, na który zbierasz.</li>`;
+  gs.forEach((g) => { if (!g.done && goalProgress(g) >= g.price) { g.done = true; U.save(GBKEY, gs); if (Host.available) Host.call("notify", "Cel osiągnięty!", `Stać cię na: ${g.name}`); } });
+}
+$("#goal-add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.target, gs = U.load(GBKEY, []); gs.push({ id: uid(), name: f.name.value.trim(), price: Math.round(+f.price.value), base: Math.round(+f.base.value) || 0, at: Date.now() }); U.save(GBKEY, gs); f.reset(); renderBuy(); });
+$("#goals-buy").addEventListener("click", (e) => { const b = e.target.closest("[data-gdel]"); if (b) { U.save(GBKEY, U.load(GBKEY, []).filter((g) => g.id !== b.dataset.gdel)); renderBuy(); } });
+/* majątek z opłatami: „Zapłacone” dodaje wydatek i przesuwa termin */
+const AKEY = "majestic-majatek-v1";
+function renderAssets() {
+  const as = U.load(AKEY, []), now = Date.now();
+  $("#assets-sum").textContent = as.length ? "razem " + money(as.reduce((a, x) => a + (x.value || 0), 0)) : "";
+  $("#assets").innerHTML = as.map((x) => { const left = x.every ? Math.ceil((x.paid + x.every * DAY - now) / DAY) : null;
+    return `<li style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 10px;border-radius:6px;background:var(--card)"><span><b>${esc(x.name)}</b> <small style="color:var(--text-3)">${x.value ? money(x.value) : ""}${x.fee ? " · opłata " + money(x.fee) : ""}</small>${left !== null ? `<br><small style="color:${left <= 0 ? "#ef4444" : left <= 1 ? "#f59e0b" : "var(--text-3)"}">${left <= 0 ? "opłata zaległa" : "opłata za " + left + " dni"}</small>` : ""}</span>${x.every ? `<button class="btn ghost small" data-apay="${x.id}" type="button">Zapłacone</button>` : "<span></span>"}<button class="x" data-adel="${x.id}" title="Usuń" aria-label="Usuń">×</button></li>`; }).join("") || `<li class="muted">Brak pozycji.</li>`;
+}
+$("#asset-add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.target, as = U.load(AKEY, []); as.push({ id: uid(), name: f.name.value.trim(), value: Math.round(+f.value.value) || 0, fee: Math.round(+f.fee.value) || 0, every: Math.round(+f.every.value) || 0, paid: Date.now() }); U.save(AKEY, as); f.reset(); renderAssets(); });
+$("#assets").addEventListener("click", (e) => {
+  const as = U.load(AKEY, []), p = e.target.closest("[data-apay]"), d = e.target.closest("[data-adel]");
+  if (d) { U.save(AKEY, as.filter((x) => x.id !== d.dataset.adel)); return renderAssets(); }
+  if (!p) return; const x = as.find((y) => y.id === p.dataset.apay); if (!x) return;
+  x.paid = Math.max(x.paid + x.every * DAY, Date.now() - x.every * DAY + DAY); U.save(AKEY, as);
+  if (x.fee) { log.push({ id: uid(), job: "Opłata: " + x.name, amt: -x.fee, min: 0, at: Date.now(), kind: "exp" }); U.save(KEY, log); render(); }
+  renderAssets(); U.toast("Zapisano opłatę" + (x.fee ? " " + money(x.fee) + " jako wydatek" : ""));
+});
+renderBuy(); renderAssets();
 $("#out").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { log = log.filter((l) => l.id !== b.dataset.del); U.save(KEY, log); render(); } });
 // po zakończonej sesji główne okno podaje jej długość
 Host.onPayload((p) => {

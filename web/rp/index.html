@@ -96,6 +96,12 @@
     <div class="btns-row"><button class="btn primary small" id="gen-roll" type="button">Losuj</button><button class="btn ghost small" id="gen-use" type="button">Wpisz do karty</button></div>
   </section>
   </div>
+  <section class="panel rise" style="--d:6"><h2>Kalkulator mandatów i wyroków <span id="fine-sum"></span></h2>
+    <p class="hint-s" style="margin:0 0 8px">Przykładowy taryfikator: popraw kwoty pod swój serwer, zapisze się. Kliknij wykroczenie, żeby dodać, prawym przyciskiem odejmij.</p>
+    <ul id="fines" style="list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px"></ul>
+    <form id="fine-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input name="n" placeholder="Nowe wykroczenie" aria-label="Nazwa wykroczenia" required style="flex:2;min-width:150px"><input name="fine" type="number" min="0" step="1" placeholder="Grzywna ($)" aria-label="Grzywna" style="flex:1;min-width:90px"><input name="jail" type="number" min="0" step="1" placeholder="Odsiadka (min)" aria-label="Odsiadka w minutach" style="flex:1;min-width:90px"><button class="btn ghost small">Dodaj do listy</button></form>
+    <div class="btns-row"><button class="btn primary small" id="fine-copy" type="button">Kopiuj wyrok</button><button class="btn ghost small" id="fine-clear" type="button">Wyczyść</button></div>
+  </section>
   <section class="panel rise" style="--d:6"><h2>Słownik pojęć RP <span id="dict-count"></span></h2>
     <input type="text" id="dict-q" placeholder="Szukaj pojęcia, np. OOC, PG, MG…" aria-label="Szukaj pojęcia" style="margin-bottom:10px">
     <dl class="dict" id="dict"></dl>
@@ -201,6 +207,24 @@ $("#pc-img").addEventListener("click", async () => {
 });
 if (Host.available) Host.call("shots_base").then((b) => { shotsBase = b; renderPc(); }).catch(() => {});
 renderPc();
+
+/* ---------- kalkulator mandatów ---------- */
+const FKEY = "majestic-taryfikator-v1";
+const FDEF = [["Przekroczenie prędkości", 500, 0], ["Jazda na czerwonym świetle", 400, 0], ["Jazda bez prawa jazdy", 1500, 0], ["Ucieczka przed policją", 5000, 15], ["Posiadanie broni bez licencji", 7500, 20], ["Napaść", 4000, 15], ["Kradzież pojazdu", 6000, 20], ["Obraza funkcjonariusza", 1000, 5], ["Utrudnianie śledztwa", 3000, 10], ["Posiadanie narkotyków", 5000, 15], ["Napad", 15000, 40], ["Usiłowanie zabójstwa", 25000, 60]].map(([n, fine, jail]) => ({ n, fine, jail }));
+let fineList = U.load(FKEY, FDEF), fineSel = {};
+function renderFines() {
+  $("#fines").innerHTML = fineList.map((f, i) => `<li><button type="button" data-f="${i}" style="width:100%;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:8px 10px;border-radius:6px;background:${fineSel[i] ? "color-mix(in srgb,var(--accent) 22%,var(--card))" : "var(--card)"};border:1px solid ${fineSel[i] ? "var(--accent)" : "var(--line)"};text-align:left"><b style="min-width:20px">${fineSel[i] ? fineSel[i] + "×" : ""}</b><span>${esc(f.n)}</span><small style="color:var(--text-3)">$${f.fine.toLocaleString("pl-PL")}${f.jail ? " · " + f.jail + " min" : ""}</small></button></li>`).join("");
+  const sel = Object.entries(fineSel), fine = sel.reduce((a, [i, k]) => a + fineList[i].fine * k, 0), jail = sel.reduce((a, [i, k]) => a + fineList[i].jail * k, 0);
+  $("#fine-sum").textContent = sel.length ? `$${fine.toLocaleString("pl-PL")}${jail ? " · " + jail + " min" : ""}` : "";
+  return { sel, fine, jail };
+}
+$("#fines").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) { fineSel[b.dataset.f] = (fineSel[b.dataset.f] || 0) + 1; renderFines(); } });
+$("#fines").addEventListener("contextmenu", (e) => { const b = e.target.closest("[data-f]"); if (!b) return; e.preventDefault(); const i = b.dataset.f; if (fineSel[i] > 1) fineSel[i]--; else delete fineSel[i]; renderFines(); });
+$("#fine-add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.target; fineList.push({ n: f.n.value.trim(), fine: Math.round(+f.fine.value) || 0, jail: Math.round(+f.jail.value) || 0 }); U.save(FKEY, fineList); f.reset(); renderFines(); });
+$("#fine-clear").addEventListener("click", () => { fineSel = {}; renderFines(); });
+$("#fine-copy").addEventListener("click", () => { const { sel, fine, jail } = renderFines(); if (!sel.length) return U.toast("Najpierw wybierz wykroczenia");
+  U.copy(sel.map(([i, k]) => `${k > 1 ? k + "× " : ""}${fineList[i].n}`).join(", ") + ` | Grzywna: $${fine.toLocaleString("pl-PL")}${jail ? ` | Odsiadka: ${jail} min` : ""}`, "Skopiowano wyrok"); });
+renderFines();
 
 /* ---------- generator postaci ---------- */
 const NAMES = {

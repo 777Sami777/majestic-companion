@@ -62,7 +62,7 @@
     <div class="grid">
       <section class="panel rise" style="--d:2"><h2>Najbliższe minutniki</h2><ul class="rows" id="timers"></ul></section>
       <section class="panel rise" style="--d:3"><h2>Grafik ekipy</h2><ul class="rows" id="events"></ul></section>
-      <section class="panel rise" style="--d:3"><h2>Cele tygodnia</h2><div id="goals"></div></section>
+      <section class="panel rise" style="--d:3"><h2>Cele tygodnia <button class="btn ghost small" id="rep-img" type="button">Raport jako obrazek</button></h2><div id="goals"></div></section>
       <section class="panel rise" style="--d:3"><h2>Zadania na dziś <span id="todo-count"></span></h2>
         <ul class="todo" id="todo"></ul>
         <form id="todo-add" class="todo-add" autocomplete="off"><input name="t" maxlength="60" placeholder="Dodaj stałe zadanie, np. Skrytka kontrabandy" aria-label="Nowe zadanie"><button class="btn small">Dodaj</button></form>
@@ -146,6 +146,28 @@ function renderCal() {
 }
 $("#cal-p").addEventListener("click", () => { calOff--; renderCal(); });
 $("#cal-n").addEventListener("click", () => { calOff++; renderCal(); });
+$("#rep-img").addEventListener("click", async () => {
+  const ws = dayStart(Date.now()) - ((new Date().getDay() + 6) % 7) * DAY;
+  const ss = (sessions || []).filter((s) => s.connected && s.joined >= ws), h = ss.reduce((a, s) => a + s.played, 0) / 3600;
+  const earn = U.load("majestic-zarobki-v1", []).filter((l) => l.at >= ws), net = earn.reduce((a, l) => a + l.amt, 0);
+  const jobs = {}; earn.filter((l) => l.amt > 0).forEach((l) => (jobs[l.job] = (jobs[l.job] || 0) + l.amt));
+  const best = Object.entries(jobs).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const W = 800, H = 420, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d"), css = getComputedStyle(document.documentElement), v = (k, d) => css.getPropertyValue(k).trim() || d;
+  g.fillStyle = v("--bg-2", "#0b1428"); g.fillRect(0, 0, W, H); g.fillStyle = v("--accent", "#2563eb"); g.fillRect(0, 0, W, 56);
+  g.fillStyle = v("--accent-ink", "#fff"); g.font = "bold 24px Bahnschrift, Segoe UI"; g.fillText("RAPORT TYGODNIA · MAJESTIC RP", 28, 37);
+  g.font = "15px Segoe UI"; g.textAlign = "right"; g.fillText(new Date(ws).toLocaleDateString("pl-PL", { day: "numeric", month: "short" }) + " – " + new Date().toLocaleDateString("pl-PL", { day: "numeric", month: "short" }), W - 28, 36); g.textAlign = "left";
+  const kpi = (x, label, val, col) => { g.fillStyle = v("--text-3", "#999"); g.font = "13px Segoe UI"; g.fillText(label.toUpperCase(), x, 100); g.fillStyle = col || v("--text", "#eee"); g.font = "bold 34px Bahnschrift, Segoe UI"; g.fillText(val, x, 140); };
+  kpi(28, "Czas gry", h.toFixed(1) + " h"); kpi(240, "Na czysto", money(net), net >= 0 ? "#22c55e" : "#ef4444"); kpi(540, "Sesje", String(ss.length));
+  g.fillStyle = v("--text-3", "#999"); g.font = "13px Segoe UI"; g.fillText("NAJLEPSZE PRACE", 28, 200);
+  const max = best[0]?.[1] || 1;
+  best.forEach(([j, a], i) => { const y = 222 + i * 52; g.fillStyle = v("--card-2", "#222"); g.fillRect(28, y, W - 56, 36); g.fillStyle = v("--accent", "#2563eb"); g.fillRect(28, y, (W - 56) * (a / max), 36); g.fillStyle = v("--text", "#eee"); g.font = "bold 16px Segoe UI"; g.fillText(j, 40, y + 24); g.textAlign = "right"; g.fillText(money(a), W - 40, y + 24); g.textAlign = "left"; });
+  if (!best.length) { g.fillStyle = v("--text-2", "#bbb"); g.font = "16px Segoe UI"; g.fillText("Brak wpisów w Zarobkach w tym tygodniu.", 28, 240); }
+  const url = c.toDataURL("image/png");
+  if (!Host.available) { const a = document.createElement("a"); a.href = url; a.download = "raport.png"; return a.click(); }
+  const r = await Host.call("copy_image", url, "raport");
+  U.toast(r && r.path ? (r.copied ? "Raport w schowku: wklej go na Discordzie" : "Zapisano: " + r.path) : "Nie udało się zapisać");
+});
 renderCal();
 function renderGoals() {
   const ws = dayStart(Date.now()) - ((new Date().getDay() + 6) % 7) * DAY;

@@ -83,6 +83,7 @@
   <section class="panel rise" style="--d:3"><h2>Dane</h2>
     <div class="row"><div class="txt"><b>Kopia zapasowa</b><small>Znaczniki, kontakty, minutniki, zarobki, własne teksty RP, ustawienia i zrzuty w jednym pliku ZIP.</small></div>
       <div class="btns"><button class="btn primary small" id="backup">Zapisz kopię</button><button class="btn ghost small" id="restore">Wczytaj kopię</button></div></div>
+    <div id="restore-pick" class="row" hidden style="display:block"></div>
     <div class="row"><div class="txt"><b>Kopia w chmurze (codziennie)</b><small id="cloud-info">Raz dziennie kopia zapisuje się w folderze OneDrive albo Google Drive, który synchronizuje się z chmurą. Trzymam 7 ostatnich kopii.</small></div>
       <div class="btns"><select id="cloud" aria-label="Folder kopii w chmurze" style="max-width:260px"></select><button class="btn ghost small" id="cloud-now" type="button">Zrób teraz</button></div></div>
     <div class="row"><div class="txt"><b>Paczka dla kolegi</b><small>Twoje znaczniki, trasy, strefy i kontakty w jednym pliku. Kolega wczytuje ją u siebie, a jego własne dane zostają.</small></div>
@@ -141,9 +142,23 @@ $("#restore").addEventListener("click", async () => {
   try {
     const raw = await Host.call("restore"); if (!raw) return;
     const { data } = JSON.parse(raw);
-    Object.entries(data || {}).forEach(([k, v]) => { if (k.startsWith("majestic-")) localStorage.setItem(k, v); });
-    say("Wczytano kopię. Odświeżam zakładki…");
-    window.parent.postMessage({ __reload: true }, "*");
+    // podgląd zmian: każdą część kopii można przywrócić osobno
+    const L = { "majestic-mapa-v1": "Mapa i znaczniki", "majestic-kontakty-v1": "Kontakty", "majestic-zarobki-v1": "Zarobki", "majestic-minutniki-v1": "Minutniki", "majestic-notatki-v1": "Notatki", "majestic-ekipa-v1": "Ekipa: grafik i magazyn", "majestic-dziennik-v1": "Dziennik postaci", "majestic-postac-v1": "Karta postaci", "majestic-rp-v1": "Teksty RP", "majestic-crafting-v1": "Kalkulator craftingu", "majestic-cele-v1": "Cele tygodnia", "majestic-cele-zakupy-v1": "Cele zakupowe", "majestic-majatek-v1": "Majątek", "majestic-taryfikator-v1": "Taryfikator mandatów", "majestic-wyglad-v1": "Wygląd", "majestic-zadania-v1": "Zadania dnia" };
+    const rows = Object.entries(data || {}).filter(([k]) => k.startsWith("majestic-") && L[k]).map(([k, v]) => {
+      const cur = localStorage.getItem(k); let n = ""; try { const a = JSON.parse(v), b = JSON.parse(cur); if (Array.isArray(a)) n = ` (kopia ${a.length}, teraz ${Array.isArray(b) ? b.length : 0})`; } catch {}
+      return { k, v, st: cur === v ? "same" : cur == null ? "new" : "diff", n };
+    });
+    if (!rows.length) return say("W tej kopii nie ma danych aplikacji.");
+    const box = $("#restore-pick"); box.hidden = false;
+    box.innerHTML = `<p style="margin:0 0 8px"><b>Co przywrócić?</b> Zaznaczone części zastąpią obecne dane.</p>` + rows.map((r, i) => `<label style="display:flex;gap:8px;align-items:center;padding:4px 0"><input type="checkbox" data-i="${i}" ${r.st === "same" ? "disabled" : "checked"}><span>${esc(L[r.k])}<small style="color:var(--text-3)"> · ${r.st === "same" ? "bez zmian" : r.st === "new" ? "tylko w kopii" : "różni się"}${r.n}</small></span></label>`).join("") + `<div class="btns" style="margin-top:8px"><button class="btn primary small" id="rp-go" type="button">Przywróć zaznaczone</button><button class="btn ghost small" id="rp-x" type="button">Anuluj</button></div>`;
+    $("#rp-x").onclick = () => { box.hidden = true; };
+    $("#rp-go").onclick = () => {
+      const pick = [...box.querySelectorAll("input:checked")].map((c) => rows[+c.dataset.i]);
+      if (!pick.length) return say("Nic nie zaznaczono.");
+      pick.forEach((r) => localStorage.setItem(r.k, r.v)); box.hidden = true;
+      say("Przywrócono: " + pick.map((r) => L[r.k]).join(", ") + ". Odświeżam zakładki…");
+      window.parent.postMessage({ __reload: true }, "*");
+    };
   } catch (e) { say("Nie udało się wczytać kopii: " + e.message); }
 });
 $("#wiki").addEventListener("click", async (e) => {

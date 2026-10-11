@@ -4,52 +4,160 @@
 <meta charset="utf-8">
 <title>Majestic Widget</title>
 <style>
-:root{--bg:#0a1424;--text:#e9eff8;--text-3:#8d9bb3;--accent:#2563eb;--good:#22c55e;--line:rgba(255,255,255,.1)}
-html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:700 12px "Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
-.w{display:grid;grid-template-columns:1fr 1fr auto;height:100%;align-items:stretch;border:1px solid var(--line);box-sizing:border-box;animation:in .5s cubic-bezier(.16,1,.3,1)}
+:root{--bg:#0a1424;--card:#111d33;--text:#e9eff8;--text-3:#8d9bb3;--accent:#2563eb;--good:#22c55e;--bad:#ef4444;--line:rgba(255,255,255,.1)}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:600 12px "Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+.w{height:100%;display:flex;flex-direction:column;border:1px solid var(--line);box-sizing:border-box;animation:in .5s cubic-bezier(.16,1,.3,1)}
 @keyframes in{from{opacity:0;transform:translateY(-6px)}}
-.cell{display:grid;align-content:center;gap:3px;padding:0 14px;border-right:1px solid var(--line);min-width:0;-webkit-app-region:drag}
-.cell label{display:flex;align-items:center;gap:6px;font:700 11.5px Bahnschrift,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
-.cell b{font:700 22px/1 Bahnschrift,sans-serif;letter-spacing:.03em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cell small{color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-bottom:1px solid var(--line);-webkit-app-region:drag;cursor:move}
+header .st{flex:1;min-width:0;display:grid;gap:1px}
+header .st span{display:flex;align-items:center;gap:6px;font:700 11px Bahnschrift,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+header b{font:700 20px/1 Bahnschrift,sans-serif;font-variant-numeric:tabular-nums}
 .dot{width:7px;height:7px;border-radius:50%;background:#5c6272}
-.on .dot{background:var(--good);box-shadow:0 0 0 3px rgba(61,220,151,.2)}
+.on .dot{background:var(--good);box-shadow:0 0 0 3px rgba(34,197,94,.2)}
 .on b{color:var(--good)}
-.t b{color:var(--accent)}
-.side{display:grid;grid-template-rows:1fr 1fr}
-.side button{width:34px;border:0;background:none;color:var(--text-3);cursor:pointer;display:grid;place-items:center}
-.side button:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.ic{width:28px;height:28px;border:0;border-radius:4px;background:none;color:var(--text-3);cursor:pointer;display:grid;place-items:center;-webkit-app-region:no-drag}
+.ic:hover,.ic:focus-visible{color:var(--text);background:rgba(255,255,255,.08);outline:none}
 svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+main{flex:1;overflow-y:auto;overflow-x:hidden;grid-template-columns:minmax(0,1fr);padding:8px 10px 10px;display:grid;gap:8px;align-content:start}
+main::-webkit-scrollbar{width:6px}main::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.compact main{display:none}
+.box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.box h3{margin:0 0 6px;font:700 11px Bahnschrift,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.kp{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.kp div{display:grid;gap:2px}.kp small{color:var(--text-3);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+.kp b{font:700 16px Bahnschrift,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g{color:var(--good)}.r{color:var(--bad)}
+.tm{display:grid;grid-template-columns:1fr auto;gap:2px 8px;margin-bottom:6px}
+.tm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tm b{font:700 13px Bahnschrift,sans-serif;font-variant-numeric:tabular-nums;color:var(--accent)}
+.bar{grid-column:1/-1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+.row{display:flex;gap:6px;align-items:center}
+button.b{flex:1;min-width:0;padding:6px 4px;border:1px solid var(--line);border-radius:4px;background:rgba(255,255,255,.04);color:var(--text);font:600 11.5px "Segoe UI",sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button.b:hover,button.b:focus-visible{border-color:var(--accent);outline:none}
+button.b.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+button.b.stop{background:var(--bad);border-color:var(--bad);color:#fff}
+input{min-width:0;padding:5px 7px;border:1px solid var(--line);border-radius:4px;background:#070f1c;color:var(--text);font:600 12px "Segoe UI",sans-serif}
+input:focus{outline:none;border-color:var(--accent)}
+.big{font:700 26px/1 Bahnschrift,sans-serif;font-variant-numeric:tabular-nums;min-width:48px;text-align:center}
+.muted{color:var(--text-3);font-weight:500}
+.ok{color:var(--good);font-size:11px;min-height:14px}
 </style>
 </head>
 <body>
-<div class="w">
-  <div class="cell" id="game"><label><i class="dot"></i><span id="g-label">Offline</span></label><b id="g-time">—</b></div>
-  <div class="cell t"><label>Minutnik</label><b id="t-left">—</b><small id="t-name">brak</small></div>
-  <div class="side">
-    <button id="open" title="Pokaż Majestic Companion"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M10 6H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg></button>
-    <button id="close" title="Zamknij widżet"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-  </div>
+<div class="w" id="w">
+  <header>
+    <div class="st" id="game"><span><i class="dot"></i><em id="g-label" style="font-style:normal">Offline</em></span><b id="g-time">—</b></div>
+    <button class="ic" id="mini" title="Zwiń / rozwiń widżet" aria-label="Zwiń lub rozwiń widżet"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+    <button class="ic" id="open" title="Pokaż Majestic Companion" aria-label="Pokaż główne okno"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M10 6H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg></button>
+    <button class="ic" id="close" title="Zamknij widżet" aria-label="Zamknij widżet"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <main>
+    <section class="box"><div class="kp">
+      <div><small>PayDay</small><b id="pd">—</b></div>
+      <div><small>Dziś</small><b id="today">—</b></div>
+      <div><small>Tydzień</small><b id="week">—</b></div>
+    </div></section>
+
+    <section class="box"><h3>Minutniki <span class="muted" id="t-count"></span></h3>
+      <div id="timers"></div>
+      <div class="row"><button class="b" data-hot="1" id="h1">1</button><button class="b" data-hot="2" id="h2">2</button><button class="b" data-hot="3" id="h3">3</button></div>
+    </section>
+
+    <section class="box"><h3>Licznik zbierania <span class="muted" id="c-time"></span></h3>
+      <div class="row" style="margin-bottom:6px"><input id="c-job" placeholder="Co zbierasz" aria-label="Co zbierasz" style="flex:2"><input id="c-price" type="number" min="0" step="1" placeholder="$ / szt." aria-label="Cena za sztukę" style="flex:1"></div>
+      <div class="row"><button class="b" id="c-minus" aria-label="Odejmij sztukę">−1</button><span class="big" id="c-count">0</span><button class="b" id="c-plus" aria-label="Dodaj sztukę">+1</button><button class="b" id="c-plus5" aria-label="Dodaj 5 sztuk">+5</button><button class="b pri" id="c-toggle">Start</button></div>
+      <div class="muted" id="c-sum" style="margin-top:5px">Ctrl+Shift+Z start/stop · Ctrl+Shift+X +1</div>
+    </section>
+
+    <section class="box" id="goal-box" hidden><h3>Cel zakupowy <span class="muted" id="goal-pct"></span></h3>
+      <div class="tm"><span id="goal-name"></span><b id="goal-left"></b><div class="bar"><i id="goal-bar"></i></div></div>
+    </section>
+
+    <section class="box" id="crew-box" hidden><h3>Ekipa</h3><div id="crew"></div></section>
+
+    <section class="box"><h3>Szybka notatka</h3>
+      <form id="note" class="row" autocomplete="off"><input name="t" maxlength="500" placeholder="Np. numer, tablica, miejsce…" aria-label="Szybka notatka" style="flex:1"><button class="b" style="flex:0 0 auto;padding:6px 10px">Zapisz</button></form>
+      <div class="ok" id="note-ok" aria-live="polite"></div>
+    </section>
+  </main>
 </div>
 <script>
 (() => {
 "use strict";
 const $ = (s) => document.querySelector(s);
 const api = () => window.pywebview && window.pywebview.api;
-let game = { running: false };
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const money = (n) => (n < 0 ? "−$" : "$") + Math.abs(Math.round(n)).toLocaleString("pl-PL");
+const short = (n) => Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1) + "M" : Math.abs(n) >= 1e4 ? Math.round(n / 1000) + "k" : String(Math.round(n));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const DAY = 86400000, PRESETS = ["PayDay", "Grzyby / zbieractwo", "Łowienie ryb", "Skrytka kontrabandy", "Przerwa", "Opłata za dom"];
+let game = { running: false }, settings = {}, compact = false;
 const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; };
+const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
 function tick() {
-  const s = game.session;
+  const now = Date.now(), s = game.session;
   $("#game").classList.toggle("on", !!game.running);
   $("#g-label").textContent = game.running ? (s && s.server) || "W grze" : "Offline";
-  $("#g-time").textContent = game.running && s ? fmt(Date.now() - (s.connected ? s.joined : s.start)) : "—";
-  let timers = []; try { timers = JSON.parse(localStorage.getItem("majestic-minutniki-v1")) || []; } catch {}
-  const next = timers.filter((t) => t.end > Date.now()).sort((a, b) => a.end - b.end)[0];
-  $("#t-left").textContent = next ? fmt(next.end - Date.now()) : "—";
-  $("#t-name").textContent = next ? next.name : "brak aktywnych";
-  try { const p = JSON.parse(localStorage.getItem("majestic-wyglad-v1")) || {}; if (p.accent) document.documentElement.style.setProperty("--accent", p.accent); } catch {}
+  $("#g-time").textContent = game.running && s ? fmt(now - (s.connected ? s.joined : s.start)) : "—";
+  // PayDay co pełną godzinę, liczony tylko w grze
+  const nextHour = new Date(); nextHour.setMinutes(60, 0, 0);
+  $("#pd").textContent = game.running ? fmt(nextHour - now) : "—";
+  const earn = load("majestic-zarobki-v1", []), t0 = dayStart(), w0 = t0 - ((new Date().getDay() + 6) % 7) * DAY;
+  const td = earn.filter((l) => l.at >= t0).reduce((a, l) => a + l.amt, 0), wk = earn.filter((l) => l.at >= w0).reduce((a, l) => a + l.amt, 0);
+  $("#today").textContent = short(td); $("#today").className = td > 0 ? "g" : td < 0 ? "r" : "";
+  $("#week").textContent = short(wk); $("#week").className = wk > 0 ? "g" : wk < 0 ? "r" : "";
+  $("#today").title = money(td); $("#week").title = money(wk);
+  // do 4 minutników z paskiem postępu
+  const timers = load("majestic-minutniki-v1", []).filter((t) => t.end > now).sort((a, b) => a.end - b.end);
+  $("#t-count").textContent = timers.length ? timers.length + " aktywne" : "";
+  $("#timers").innerHTML = timers.slice(0, 4).map((t) => { const total = t.dur || (t.start ? t.end - t.start : 0), pct = total ? Math.min(100, ((now - (t.end - total)) / total) * 100) : 0;
+    return `<div class="tm"><span>${esc(t.name)}</span><b>${fmt(t.end - now)}</b><div class="bar"><i style="width:${pct}%;background:${t.c || "var(--accent)"}"></i></div></div>`; }).join("") || `<div class="muted" style="margin-bottom:6px">Brak aktywnych minutników.</div>`;
+  // licznik zbierania
+  const c = load("majestic-zbieranie-v1", {});
+  $("#c-count").textContent = c.count || 0;
+  $("#c-toggle").textContent = c.on ? "Stop" : "Start"; $("#c-toggle").className = "b " + (c.on ? "stop" : "pri");
+  if (document.activeElement !== $("#c-job")) $("#c-job").value = c.job || "";
+  if (document.activeElement !== $("#c-price")) $("#c-price").value = c.price || "";
+  const min = c.on ? (now - c.start) / 60000 : 0;
+  $("#c-time").textContent = c.on ? fmt(now - c.start) : "";
+  $("#c-sum").textContent = c.on && c.price ? `${money((c.count || 0) * c.price)}${min >= 1 ? " · " + money(((c.count || 0) * c.price) / (min / 60)) + "/h" : ""}` : "Ctrl+Shift+Z start/stop · Ctrl+Shift+X +1";
+  // pierwszy niezrealizowany cel zakupowy
+  const goal = load("majestic-cele-zakupy-v1", []).find((g) => !g.done) || load("majestic-cele-zakupy-v1", [])[0];
+  $("#goal-box").hidden = !goal;
+  if (goal) { const have = (goal.base || 0) + earn.filter((l) => l.at >= goal.at).reduce((a, l) => a + l.amt, 0), pct = Math.max(0, Math.min(100, (have / goal.price) * 100));
+    $("#goal-name").textContent = goal.name; $("#goal-pct").textContent = Math.floor(pct) + "%"; $("#goal-bar").style.width = pct + "%";
+    $("#goal-left").textContent = pct >= 100 ? "stać cię!" : "brakuje " + short(goal.price - have); }
+  // ekipa z mapy ekipy
+  const cr = load("majestic-ekipa-online-v1", null), team = (load("majestic-ekipa-mapa-v1", {}) || {}).team;
+  $("#crew-box").hidden = !cr || now - cr.t > 300000;
+  if (cr) $("#crew").innerHTML = `${team && team.name ? `<b style="color:${esc(team.color || "#fff")}">${team.tag ? "[" + esc(team.tag) + "] " : ""}${esc(team.name)}</b> · ` : ""}${cr.n} w grze, ${cr.all} połączonych`;
+  // kolory jak w aplikacji
+  const p = load("majestic-wyglad-v1", {}); if (p.accent) document.documentElement.style.setProperty("--accent", p.accent);
 }
-async function poll() { const a = api(); if (a) { try { game = await a.game_status(); } catch {} } }
+async function poll() {
+  const a = api(); if (!a) return;
+  try { game = await a.game_status(); } catch {}
+  try { settings = await a.get_settings(); (settings.hotPresets || [1, 2, 3]).forEach((n, i) => { const b = $("#h" + (i + 1)); b.textContent = "▶ " + (PRESETS[n - 1] || "Minutnik " + n); b.title = "Ctrl+Shift+" + (i + 1); }); } catch {}
+}
+const collect = (cmd, arg) => api() && api().collect(cmd, arg ?? null).then(() => setTimeout(tick, 150));
+$("#c-toggle").onclick = () => collect("toggle");
+$("#c-plus").onclick = () => collect("add", 1);
+$("#c-plus5").onclick = () => collect("add", 5);
+$("#c-minus").onclick = () => collect("add", -1);
+$("#c-job").onchange = (e) => collect("set", { job: e.target.value.trim() || "Zbieractwo" });
+$("#c-price").onchange = (e) => collect("set", { price: Math.max(0, +e.target.value || 0) });
+document.querySelectorAll("[data-hot]").forEach((b) => (b.onclick = () => api() && api().hot_timer(+b.dataset.hot)));
+$("#note").onsubmit = (e) => {
+  e.preventDefault(); const t = e.target.t.value.trim(); if (!t) return;
+  const notes = load("majestic-notatki-v1", []); notes.push({ id: Date.now().toString(36), t, at: Date.now() });
+  try { localStorage.setItem("majestic-notatki-v1", JSON.stringify(notes)); $("#note-ok").textContent = "Zapisano w Notatkach"; } catch { $("#note-ok").textContent = "Nie udało się zapisać"; }
+  e.target.t.value = ""; setTimeout(() => ($("#note-ok").textContent = ""), 2500);
+};
+$("#mini").onclick = () => {
+  compact = !compact; $("#w").classList.toggle("compact", compact);
+  $("#mini").innerHTML = `<svg viewBox="0 0 24 24"><path d="${compact ? "M6 9l6 6 6-6" : "M6 15l6-6 6 6"}"/></svg>`;
+  api() && api().widget_resize(340, compact ? 52 : 560);
+};
 $("#close").onclick = () => api() && api().close_widget();
 $("#open").onclick = () => api() && api().show_main();
 window.addEventListener("pywebviewready", poll);
