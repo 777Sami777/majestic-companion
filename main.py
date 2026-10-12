@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.8.0"
+APP_VERSION = "2.8.1"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -814,13 +814,29 @@ class Api:
         bat = os.path.join(tmp, "aktualizuj.bat")
         with open(bat, "w", encoding="mbcs") as f:
             f.write(f"""@echo off
+set LOG="{os.path.join(tmp, 'aktualizuj.log')}"
+echo start %date% %time% > %LOG%
+set n=0
 :wait
-tasklist /fi "imagename eq MajesticCompanion.exe" | find /i "MajesticCompanion.exe" >nul && (timeout /t 1 /nobreak >nul & goto wait)
-robocopy "{new_dir}" "{app_dir}" /e /njh /njs /nfl /ndl /np >nul
+tasklist /fi "imagename eq MajesticCompanion.exe" | find /i "MajesticCompanion.exe" >nul || goto copy
+set /a n+=1
+if %n% geq 40 taskkill /f /im MajesticCompanion.exe >> %LOG% 2>&1
+ping -n 2 127.0.0.1 >nul
+goto wait
+:copy
+echo kopiuje >> %LOG%
+robocopy "{new_dir}" "{app_dir}" /e /r:15 /w:1 /njh /njs /nfl /ndl /np >> %LOG%
+echo robocopy %errorlevel% >> %LOG%
 start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 """)
-        subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000 | 0x00000008)  # bez okna, odłączony
+        # ping zamiast timeout (bez konsoli timeout od razu się kończy); /r:15 /w:1: zablokowany plik nie wiesza robocopy na godziny
+        flags = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+        try:
+            subprocess.Popen(["cmd", "/c", bat], creationflags=flags | 0x01000000, close_fds=True)  # + CREATE_BREAKAWAY_FROM_JOB
+        except OSError:
+            subprocess.Popen(["cmd", "/c", bat], creationflags=flags, close_fds=True)
         threading.Timer(0.8, self.quit_app).start()
+        threading.Timer(5, os._exit, (0,)).start()  # na pewno zamknij proces, inaczej skrypt czeka w nieskończoność
         return {"ok": True, "version": info["latest"]}
 
     def open_url(self, url):
