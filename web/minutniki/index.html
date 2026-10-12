@@ -49,6 +49,12 @@
     </form>
   </section>
   <section class="rise" style="--d:2"><div class="timers" id="timers"></div></section>
+  <section class="panel rise" style="--d:3;margin-top:14px"><h2>Planer sesji <span id="plan-st"></span></h2>
+    <p class="hint" style="margin:0 0 8px">Ułóż plan, np. „Kraby 60 min → Skrytka 30 min → Akcja ekipy 20 min”. Aplikacja prowadzi Cię krok po kroku z powiadomieniami.</p>
+    <form id="plan-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label class="field" style="flex:2;min-width:160px"><span>Krok</span><input type="text" name="name" maxlength="40" placeholder="np. Kraby w Paleto" required></label><label class="field"><span>Minuty</span><input type="number" name="min" min="1" max="600" value="30"></label><button class="btn">Dodaj krok</button></form>
+    <ol id="plan" style="margin:12px 0;padding-left:22px;display:grid;gap:6px"></ol>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="plan-start" type="button">Start planu</button><button class="btn" id="plan-next" type="button">Następny krok</button><button class="btn" id="plan-stop" type="button">Zatrzymaj</button><button class="btn" id="plan-clear" type="button">Wyczyść</button></div>
+  </section>
   <section class="panel rise" style="--d:3;margin-top:14px"><h2>Przypomnienia cykliczne</h2>
     <form id="cyc-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
       <label class="field" style="flex:2;min-width:160px"><span>Co</span><input type="text" name="name" maxlength="40" placeholder="np. Zebranie ekipy" required></label>
@@ -164,6 +170,24 @@ $("#cyc-add").addEventListener("submit", (e) => {
 });
 $("#cyc").addEventListener("click", (e) => { const b = e.target.closest("[data-cdel]"); if (!b) return; const list = U.load(CYK, []); list.splice(+b.dataset.cdel, 1); U.save(CYK, list); renderCyc(); });
 renderCyc(); setInterval(renderCyc, 60000);
+/* planer sesji: lista tutaj, odliczanie w głównym oknie */
+const PLK = "majestic-plan-v1";
+const planCmd = (c) => { try { return window.parent.__plan(c); } catch { return null; } };
+function renderPlan() {
+  const p = U.load(PLK, { steps: [], run: null }), now = Date.now();
+  $("#plan").innerHTML = p.steps.map((s, i) => { const cur = p.run && p.run.i === i, done = p.run && i < p.run.i;
+    return `<li style="padding:6px 10px;border-radius:5px;background:${cur ? "color-mix(in srgb,var(--accent) 22%,var(--card))" : "var(--card)"};${done ? "opacity:.5;text-decoration:line-through" : ""}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span><b>${esc(s.name)}</b> <small style="color:var(--text-3)">${s.min} min${cur ? " · zostało " + Math.max(0, Math.ceil((p.run.end - now) / 60000)) + " min" : ""}</small></span><button class="btn ghost small" data-pdel="${i}" type="button" aria-label="Usuń krok" ${p.run ? "disabled" : ""}>×</button></div></li>`; }).join("") || `<li style="list-style:none;color:var(--text-3)">Brak kroków.</li>`;
+  $("#plan-st").textContent = p.run ? `krok ${p.run.i + 1}/${p.steps.length}` : p.steps.length ? `razem ${p.steps.reduce((a, s) => a + s.min, 0)} min` : "";
+  $("#plan-start").disabled = !!p.run || !p.steps.length; $("#plan-next").disabled = $("#plan-stop").disabled = !p.run;
+}
+$("#plan-add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.target, p = U.load(PLK, { steps: [], run: null }); p.steps.push({ name: f.name.value.trim(), min: Math.max(1, Math.round(+f.min.value || 1)) }); U.save(PLK, p); f.name.value = ""; f.name.focus(); renderPlan(); });
+$("#plan").addEventListener("click", (e) => { const b = e.target.closest("[data-pdel]"); if (!b) return; const p = U.load(PLK, { steps: [], run: null }); p.steps.splice(+b.dataset.pdel, 1); U.save(PLK, p); renderPlan(); });
+$("#plan-start").addEventListener("click", () => { planCmd("start"); renderPlan(); });
+$("#plan-next").addEventListener("click", () => { planCmd("next"); renderPlan(); });
+$("#plan-stop").addEventListener("click", () => { planCmd("stop"); renderPlan(); });
+$("#plan-clear").addEventListener("click", () => { U.save(PLK, { steps: [], run: null }); renderPlan(); });
+Host.onPayload((p) => { if (p.plan) renderPlan(); });
+renderPlan(); setInterval(renderPlan, 15000);
 })();
 </script>
 </body>

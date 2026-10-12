@@ -1041,8 +1041,10 @@ function renderDrawings() {
     f.addEventListener("change", () => { state.fuel = { kmh: +f.kmh.value || FUEL_DEF.kmh, l100: +f.l100.value || FUEL_DEF.l100, price: +f.price.value || 0 }; save(); renderDrawings(); });
     $("#draw-list").after(f);
   }  drawGroup.clearLayers();
-  (state.drawings || []).forEach((d) => drawShape(d));
-  const list = state.drawings || [];
+  const hid = state.hiddenGrp || [];
+  (state.drawings || []).filter((d) => !hid.includes(d.grp || "")).forEach((d) => drawShape(d));
+  const list = (state.drawings || []).filter((d) => !state.showGrp || (d.grp || "") === state.showGrp);
+  renderGroups();
   $("#draw-list").innerHTML = list.length ? list.map((d, i) => `<li><button class="place" data-draw="${d.id}" style="--c:${d.color};--i:${i}"><i></i>
 
       <span>${esc(d.name)}</span><small>${d.kind === "route" ? fmtDist(dist(d.pts)) + " · " + tripInfo(dist(d.pts)) : "strefa"}</small></button>
@@ -1083,7 +1085,7 @@ function finishDraw() {
   const min = d.kind === "route" ? 2 : 3;
   if (d.pts.length < min) return toast(d.kind === "route" ? "Trasa potrzebuje co najmniej 2 punktów" : "Strefa potrzebuje co najmniej 3 rogów");
   const n = (state.drawings || []).filter((x) => x.kind === d.kind).length + 1;
-  const item = { id: uid(), kind: d.kind, pts: d.pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color: d.color, name: (d.kind === "route" ? "Trasa " : "Strefa ") + n };
+  const item = { id: uid(), kind: d.kind, pts: d.pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color: d.color, name: (d.kind === "route" ? "Trasa " : "Strefa ") + n, grp: state.curGrp || "" };
   (state.drawings ||= []).push(item);
   cancelDraw(); save(); renderDrawings();
   toast(d.kind === "route" ? `Zapisano trasę: ${fmtDist(dist(item.pts))}` : "Zapisano strefę");
@@ -1204,7 +1206,7 @@ function routeThrough(left, name, color, what) {
     left.forEach((p, i) => { const d = Math.hypot(p[0] - last[0], p[1] - last[1]); if (d < bd) { bd = d; bi = i; } });
     pts.push(left.splice(bi, 1)[0]);
   }
-  const item = { id: uid(), kind: "route", pts: pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color, name };
+  const item = { id: uid(), kind: "route", pts: pts.map(([a, b]) => [Math.round(a), Math.round(b)]), color, name, grp: state.curGrp || "" };
   (state.drawings ||= []).push(item);
   save(); renderDrawings();
   map.flyToBounds(L.latLngBounds(item.pts), { padding: [80, 80], duration: 1 });
@@ -1349,7 +1351,7 @@ async function crewOpen(msg) {
 function crewApply(ev) {
   if (!ev || ev.from === crewId) return;
   if (ev.op === "hello") { crewPing(); const t = U.load(CREW_KEY, {}).team; if (t) crewSend({ op: "team", team: t }); return crewSnapshot(); }
-  if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20), h: +ev.h || 0, net: +ev.net || 0 }; return renderCrewPeople(); }
+  if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20), h: +ev.h || 0, net: +ev.net || 0, rate: +ev.rate || 0, best: String(ev.best || "").slice(0, 24) }; return renderCrewPeople(); }
   if (ev.op === "team" && ev.team) { const t = { name: String(ev.team.name || "").slice(0, 32), tag: String(ev.team.tag || "").slice(0, 5), color: /^#[0-9a-f]{6}$/i.test(ev.team.color) ? ev.team.color : "#2563eb" }; U.save(CREW_KEY, { ...U.load(CREW_KEY, {}), team: t }); return renderCrewTeam(); }
   if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); Host.call("push", "Ekipa: " + String(ev.by || "?").slice(0, 24), ev.t.slice(0, 300)).catch(() => {}); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
   if (ev.op === "pin" && Number.isFinite(ev.x) && Number.isFinite(ev.y)) return showCrewPin(ev);
@@ -1394,7 +1396,7 @@ async function crewConnect(code, nick) {
   if (!crypto.subtle) return toast("Szyfrowanie niedostępne w tej wersji Windows");
   const { topic, key } = await crewKeys(code);
   crew = { topic, key, sent: new Map((state?.markers || []).filter((m) => !m.builtin).map((m) => [m.id, JSON.stringify(crewView(m))])) };
-  U.save(CREW_KEY, { code, nick });
+  U.save(CREW_KEY, { ...U.load(CREW_KEY, {}), code, nick });
   crew.es = new EventSource(`https://ntfy.sh/${topic}/sse?since=12h`);
   crew.es.onmessage = async (e) => { try { const d = JSON.parse(e.data); if (d.event === "message") crewApply(await crewOpen(d.message)); } catch {} };
   crew.es.onopen = () => { renderCrew("on"); renderCrewPeople(); renderCrewChat(); crewPing(); };
@@ -1412,13 +1414,31 @@ function crewDisconnect(silent) {
 const crewSeen = {};
 let crewGame = { running: false };
 Host.onGame((g) => { const was = crewGame.running; crewGame = g; if (crew && was !== g.running) crewPing(); });
+/* własne warstwy tras i stref: nowe rysunki trafiają do wybranej warstwy, każdą można ukryć */
+function renderGroups() {
+  let bar = document.getElementById("grp-bar");
+  if (!bar) { bar = document.createElement("div"); bar.id = "grp-bar"; bar.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 8px;font-size:12px"; $("#draw-list").before(bar);
+    bar.addEventListener("click", (e) => { const t = e.target.closest("[data-grp-eye]"), s = e.target.closest("[data-grp-sel]"), n = e.target.closest("[data-grp-new]");
+      if (t) { const g = t.dataset.grpEye, h = state.hiddenGrp || []; state.hiddenGrp = h.includes(g) ? h.filter((x) => x !== g) : [...h, g]; }
+      if (s) { state.curGrp = s.dataset.grpSel; state.showGrp = state.showGrp === s.dataset.grpSel ? "" : s.dataset.grpSel; }
+      if (n) { const f = bar.querySelector("#grp-name"); if (!f.value.trim()) return f.focus(); state.curGrp = state.showGrp = f.value.trim().slice(0, 24); toast(`Nowe trasy i strefy trafią do warstwy „${state.curGrp}”`); }
+      if (t || s || n) { save(); renderDrawings(); } }); }
+  const groups = [...new Set(["", ...(state.drawings || []).map((d) => d.grp || ""), state.curGrp || ""])];
+  bar.innerHTML = `<small style="width:100%;color:var(--text-3)">Warstwy (klik: pokaż listę i rysuj do niej, oko: ukryj na mapie)</small>` + groups.map((g) => `<span class="chip ${state.showGrp === g && g ? "on" : ""}" style="display:inline-flex;gap:4px;padding:3px 8px"><button type="button" data-grp-sel="${esc(g)}" style="all:unset;cursor:pointer">${g ? esc(g) : "Ogólne"}${(state.curGrp || "") === g ? " ✎" : ""}</button><button type="button" data-grp-eye="${esc(g)}" title="${(state.hiddenGrp || []).includes(g) ? "Pokaż na mapie" : "Ukryj na mapie"}" aria-label="Widoczność warstwy ${g ? esc(g) : "Ogólne"}" style="all:unset;cursor:pointer;opacity:${(state.hiddenGrp || []).includes(g) ? .4 : 1}">👁</button></span>`).join("") + `<input id="grp-name" maxlength="24" placeholder="Nowa warstwa" aria-label="Nazwa nowej warstwy" style="width:110px;padding:3px 6px"><button class="copy-btn" type="button" data-grp-new>+</button>`;
+}
 const weekStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() - ((d.getDay() + 6) % 7) * 86400000; };
 let crewHours = 0;
 async function crewWeek() { try { const ws = weekStart(); crewHours = (await Host.call("sessions")).sessions.filter((s) => s.connected && s.joined >= ws).reduce((a, s) => a + s.played, 0) / 3600; } catch {} }
+function myWeek() {
+  let log = []; try { log = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= weekStart() && l.kind !== "exp"); } catch {}
+  const min = log.reduce((a, l) => a + (l.min || 0), 0), by = {}; log.forEach((l) => (by[l.job] = (by[l.job] || 0) + l.amt));
+  return { rate: min ? Math.round(log.reduce((a, l) => a + l.amt, 0) / (min / 60)) : 0, best: (Object.entries(by).sort((a, b) => b[1] - a[1])[0] || [""])[0].slice(0, 24) };
+}
 function crewPing() {
   if (!crew) return;
   let net = 0; try { const ws = weekStart(); net = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= ws).reduce((a, l) => a + l.amt, 0); } catch {}
-  crewSend({ op: "ping", by: crewNick(), on: !!crewGame.running, srv: crewGame.session?.server || "", h: Math.round(crewHours * 10) / 10, net });
+  const me = myWeek();
+  crewSend({ op: "ping", by: crewNick(), on: !!crewGame.running, srv: crewGame.session?.server || "", h: Math.round(crewHours * 10) / 10, net, rate: me.rate, best: me.best });
 }
 crewWeek(); setInterval(crewWeek, 600000);
 setInterval(crewPing, 60000);
@@ -1429,8 +1449,9 @@ function renderCrewPeople() {
   el.innerHTML = list.length ? list.map(([n, v]) => `<li class="${v.on ? "on" : ""}"><i></i><span>${esc(n)}</span><small>${v.on ? "10-8 · " + esc(v.srv || "w grze") : "10-7 · poza grą"}</small></li>`).join("") : `<li class="none">Nikt inny nie jest teraz połączony.</li>`;
   const rk = document.getElementById("crew-rank"); if (!rk) return;
   const me = crewNick(); let myNet = 0; try { const ws = weekStart(); myNet = (JSON.parse(localStorage.getItem("majestic-zarobki-v1")) || []).filter((l) => l.at >= ws).reduce((a, l) => a + l.amt, 0); } catch {}
-  const all = [[me + " (ty)", { h: Math.round(crewHours * 10) / 10, net: myNet }], ...Object.entries(crewSeen).filter(([n]) => n !== me)].sort((a, b) => b[1].net - a[1].net);
-  rk.innerHTML = all.map(([n, v], i) => `<li><b>${i + 1}.</b> <span>${esc(n)}</span><small>${v.h || 0} h · $${Math.round(v.net || 0).toLocaleString("pl-PL")}</small></li>`).join("");
+  const all = [[me + " (ty)", { h: Math.round(crewHours * 10) / 10, net: myNet, ...myWeek() }], ...Object.entries(crewSeen).filter(([n]) => n !== me)].sort((a, b) => b[1].net - a[1].net);
+  rk.innerHTML = all.map(([n, v], i) => `<li title="${v.best ? "Najlepsza praca: " + esc(v.best) : ""}"><b>${i + 1}.</b> <span>${esc(n)}</span><small>${v.h || 0} h · $${Math.round(v.net || 0).toLocaleString("pl-PL")}${v.rate ? " · $" + v.rate.toLocaleString("pl-PL") + "/h" : ""}${v.best ? " · " + esc(v.best) : ""}</small></li>`).join("");
+  window.__crewRank = all;
 }
 setInterval(renderCrewPeople, 30000);
 /* czat ekipy i pinezka „tu jestem” (widoczna 10 minut) */
@@ -1467,6 +1488,8 @@ function renderCrew(st) {
        <small>Twoje znaczniki widzi każdy z tym samym kodem. Szyfrowane kodem ekipy.</small>
        <div id="crew-team"></div>
        <ul class="crew-people" id="crew-people"></ul><h3 style="margin:10px 0 4px;font-size:12px;opacity:.75">Ranking tygodnia (godziny · na czysto)</h3><ul class="crew-people" id="crew-rank"></ul>
+       <button class="link" id="crew-rank-dc" type="button">Ranking tygodnia na Discorda</button>
+       <button class="link" id="crew-qr" type="button">Pokaż kod ekipy jako QR</button>
        <button class="link" id="crew-pin-btn" type="button">Pokaż ekipie, gdzie jestem (10 min)</button>
        <ul class="crew-chat" id="crew-chat" aria-live="polite"></ul>
        <form id="crew-say" class="crew-say" autocomplete="off"><input name="t" maxlength="300" placeholder="Wiadomość do ekipy…" aria-label="Wiadomość do ekipy"><button class="copy-btn">Wyślij</button></form>
@@ -1582,3 +1605,19 @@ $("#me-btn").addEventListener("click", startMe);
 $("#shots-btn").addEventListener("click", () => openInbox(null));
 boot();
 })();
+
+/* ranking na Discorda i kod QR (delegacja: panel ekipy rysuje się na nowo) */
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("#crew-rank-dc")) {
+    const all = window.__crewRank || []; if (!all.length) return toast("Ranking jeszcze pusty");
+    const t = "**Ranking ekipy: ten tydzień**\n" + all.map(([n, v], i) => `${i + 1}. ${n}: ${v.h || 0} h, $${Math.round(v.net || 0).toLocaleString("pl-PL")}${v.rate ? ", $" + v.rate.toLocaleString("pl-PL") + "/h" : ""}${v.best ? " (" + v.best + ")" : ""}`).join("\n");
+    const ok = await Host.call("discord_send", t, "dcReport").catch(() => false);
+    try { await navigator.clipboard.writeText(t); } catch {}
+    toast(ok ? "Wysłano ranking na Discorda (i skopiowano)" : "Skopiowano ranking. Ustaw webhook w Ustawieniach, żeby wysyłać od razu.");
+  }
+  if (e.target.closest("#crew-qr")) {
+    const code = U.load(CREW_KEY, {}).code; if (!code) return toast("Najpierw połącz się z ekipą");
+    const src = await Host.call("qr", code);
+    L.popup({ className: "cd-pop", maxWidth: 320 }).setLatLng(map.getCenter()).setContent(`<b>Kod ekipy</b><p>Zeskanuj telefonem. Nie pokazuj go na streamie: kto ma kod, widzi Wasze znaczniki.</p><img src="${src}" alt="Kod QR z kodem ekipy" style="width:240px;height:240px;display:block;margin:6px auto;image-rendering:pixelated">`).openOn(map);
+  }
+});

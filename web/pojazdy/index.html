@@ -86,7 +86,7 @@ function render() {
     <td class="nm"><b>${esc(v[1])}</b><small>${esc(v[0])}${v[3] ? " · " + esc(v[3]) : ""}</small></td>
     <td><span class="tag">${TYPES[v[2]] || esc(v[2])}</span></td><td>${esc(v[4]) || "—"}</td>
     <td class="num">${kmh(v[6])}</td><td class="num">${kmh(v[7])}</td><td class="num">${kg(v[5])}</td>
-    <td class="num">${v[8] ? money(v[8]) : "—"}</td><td class="num">${v[9] ? money(v[9]) : "—"}</td></tr>`).join("")
+    <td class="num">${v[8] ? money(v[8]) + priceTrend(v) : "—"}</td><td class="num">${v[9] ? money(v[9]) : "—"}</td></tr>`).join("")
     || `<tr><td colspan="9" class="empty"><b>Brak wyników</b>Zmień wyszukiwanie albo filtry.</td></tr>`;
   $("#count").textContent = `${list.length} z ${all.length} pojazdów${list.length > 400 ? " · pokazuję pierwsze 400, zawęź wyszukiwanie" : ""}`;
   document.querySelectorAll("th[data-k]").forEach((th) => th.setAttribute("aria-sort", +th.dataset.k === sortK ? (sortDir > 0 ? "ascending" : "descending") : "none"));
@@ -129,10 +129,24 @@ $("#rows").addEventListener("change", (e) => { const c = e.target.closest("[data
 $("#cmp").addEventListener("click", (e) => { const b = e.target.closest("[data-unpick]"); if (b) setPicked(picked.filter((x) => x !== b.dataset.unpick)); });
 document.querySelector("thead").addEventListener("click", (e) => { const th = e.target.closest("th[data-k]"); if (!th) return; const k = +th.dataset.k; sortDir = k === sortK ? -sortDir : (k <= 4 ? 1 : -1); sortK = k; render(); });
 ["q", "type", "buy"].forEach((id) => $("#" + id).addEventListener("input", render));
+/* historia cen: zapis przy każdej zmianie ceny z wiki; strzałka i % przy cenie */
+const HKEY = "majestic-ceny-hist-v1";
+let hist = U.load(HKEY, {});
+function recordPrices() {
+  let ch = 0; const t = meta && meta.at ? meta.at : Date.now();
+  all.forEach((v) => { if (!v[8]) return; const h = (hist[v[0]] ||= []), last = h[h.length - 1]; if (!last || last[1] !== v[8]) { h.push([t, v[8]]); if (h.length > 12) h.shift(); ch++; } });
+  if (ch) U.save(HKEY, hist);
+}
+function priceTrend(v) {
+  const h = hist[v[0]]; if (!h || h.length < 2) return "";
+  const prev = h[h.length - 2][1], pct = Math.round(((v[8] - prev) / prev) * 100); if (!pct) return "";
+  return ` <small title="${h.map(([t, p]) => new Date(t).toLocaleDateString("pl-PL") + ": $" + p.toLocaleString("pl-PL")).join("\n")}" style="color:${pct > 0 ? "#ef4444" : "#22c55e"}">${pct > 0 ? "▲" : "▼"}${Math.abs(pct)}%</small>`;
+}
 async function load() {
   if (!Host.available) { $("#count").textContent = "Baza pojazdów działa w aplikacji Majestic Companion."; return; }
   meta = await Host.call("vehicles");
   all = (meta && meta.items) || [];
+  recordPrices();
   $("#src").textContent = meta && meta.at ? "Dane z Majestic Wiki · " + new Date(meta.at).toLocaleDateString("pl-PL") : "";
   render();
 }

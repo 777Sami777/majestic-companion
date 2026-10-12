@@ -68,10 +68,12 @@
   const LIGHTISH = ["light", "szeryf"];
   const prefs = () => { try { return JSON.parse(localStorage.getItem("majestic-wyglad-v1")) || {}; } catch { return {}; } };
   function applyLook() {
-    const p = prefs(), root = document.documentElement, t = THEMES[p.theme] || {};
+    const p = prefs(), root = document.documentElement, h = new Date().getHours();
+    // motyw według pory dnia: jasny 7–19, wieczorem wybrany motyw
+    const th = p.autoTheme ? (h >= 7 && h < 19 ? "light" : (p.theme === "light" ? "" : p.theme)) : p.theme, t = THEMES[th] || {};
     TOKENS.forEach((k) => root.style.removeProperty(k));
-    root.classList.toggle("light", LIGHTISH.includes(p.theme));
-    root.dataset.theme = THEMES[p.theme] ? p.theme : "mdt";
+    root.classList.toggle("light", LIGHTISH.includes(th));
+    root.dataset.theme = THEMES[th] ? th : "mdt";
     Object.entries(t).forEach(([k, v]) => k.startsWith("--") && root.style.setProperty(k, v));
     const accent = p.accent || t.accent || "";
     if (accent) root.style.setProperty("--accent", accent); else root.style.removeProperty("--accent");
@@ -82,6 +84,7 @@
     root.style.setProperty("--accent-ink", 0.299 * r + 0.587 * g + 0.114 * b > 160 ? "#0c182c" : "#ffffff");
   }
   applyLook();
+  if (prefs().autoTheme) setInterval(applyLook, 600000);
   // ostatnie błędy (do przycisku „Zgłoś błąd”), bez danych użytkownika
   const logErr = (m) => { try { const k = "majestic-bledy-v1", a = JSON.parse(localStorage.getItem(k)) || []; a.push({ t: Date.now(), p: location.pathname.split("/web/")[1] || "", m: String(m).slice(0, 300) }); localStorage.setItem(k, JSON.stringify(a.slice(-10))); } catch {} };
   window.addEventListener("error", (e) => logErr((e.message || "błąd") + (e.lineno ? " @" + e.lineno : "")));

@@ -110,6 +110,8 @@ function tick() {
   $("#today").title = money(td); $("#week").title = money(wk);
   // do 4 minutników z paskiem postępu
   const timers = load("majestic-minutniki-v1", []).filter((t) => t.end > now).sort((a, b) => a.end - b.end);
+  const plan = load("majestic-plan-v1", { steps: [], run: null });
+  if (plan.run && plan.steps[plan.run.i]) { const s = plan.steps[plan.run.i]; timers.unshift({ name: `Plan ${plan.run.i + 1}/${plan.steps.length}: ${s.name}`, end: plan.run.end, dur: s.min * 60000, c: "#f59e0b" }); }
   $("#t-count").textContent = timers.length ? timers.length + " aktywne" : "";
   $("#timers").innerHTML = timers.slice(0, 4).map((t) => { const total = t.dur || (t.start ? t.end - t.start : 0), pct = total ? Math.min(100, ((now - (t.end - total)) / total) * 100) : 0;
     return `<div class="tm"><span>${esc(t.name)}</span><b>${fmt(t.end - now)}</b><div class="bar"><i style="width:${pct}%;background:${t.c || "var(--accent)"}"></i></div></div>`; }).join("") || `<div class="muted" style="margin-bottom:6px">Brak aktywnych minutników.</div>`;

@@ -81,7 +81,12 @@
     <div class="row"><div class="txt"><b>Kreator</b><small>Serwer, postać, frakcja i praca w 30 sekund.</small></div><button class="btn ghost small" id="wizard" type="button">Uruchom kreator</button></div>
     <div class="row"><div class="txt"><b>Zgłoś błąd</b><small>Otwiera gotowe zgłoszenie na GitHubie z wersją aplikacji i ostatnimi błędami (bez Twoich danych). Dopisz tylko, co się stało.</small></div><button class="btn ghost small" id="bug" type="button">Zgłoś błąd</button></div>
   </section>
+  <section class="panel rise" style="--d:2"><h2>Skróty w grze</h2>
+    <p class="hint" style="margin:0 0 8px">Ctrl+Shift+litera działa także w grze. Zmień, jeśli gryzie się z czymś w grze.</p>
+    <div id="keys-cfg" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px"></div>
+  </section>
   <section class="panel rise" style="--d:2"><h2>Głos i bateria</h2>
+    <div class="row"><div class="txt"><b>Motyw według pory dnia</b><small>Jasny w dzień (7–19), wieczorem Twój wybrany motyw.</small></div><label class="tog"><input type="checkbox" id="auto-theme"><i></i></label></div>
     <div class="row"><div class="txt"><b>Asystent głosowy</b><small>Czyta na głos ważne powiadomienia: PayDay, minutniki, wojny, koniec zbierania. Nie musisz patrzeć na ekran.</small></div><div class="btns"><button class="btn ghost small" id="voice-test" type="button">Posłuchaj</button><label class="tog"><input type="checkbox" id="voice"><i></i></label></div></div>
     <div class="row"><div class="txt"><b>Tryb oszczędzania baterii</b><small>Wyłącza animacje. „Auto” włącza go tylko, gdy laptop nie jest podłączony do prądu.</small></div><div class="chips" id="eco"><button class="chip" data-eco="off" type="button">Wyłączony</button><button class="chip" data-eco="auto" type="button">Auto</button><button class="chip" data-eco="on" type="button">Zawsze</button></div></div>
   </section>
@@ -219,6 +224,20 @@ $("#prof-del").addEventListener("click", () => {
   switchProf(to); const q = profs(); q.list = q.list.filter((x) => x.id !== gone); U.save(PROF, q); localStorage.removeItem("majestic-p-" + gone); renderProf();
 });
 renderProf();
+/* skróty w grze: Ctrl+Shift+litera */
+const KEYN = [["note", "Szybka notatka", "N"], ["collect", "Zbieranie start/stop", "Z"], ["add", "Zbieranie +1", "X"], ["shot", "Zrzut do galerii", "S"]];
+function renderKeys() {
+  if (!st) return; const k = { ...Object.fromEntries(KEYN.map(([n, , d]) => [n, d])), ...(st.keys || {}) };
+  $("#keys-cfg").innerHTML = KEYN.map(([n, label]) => `<label class="field" style="display:grid;gap:4px"><span>${label}</span><select data-key="${n}" aria-label="${label}">${"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((c) => `<option ${k[n] === c ? "selected" : ""}>${c}</option>`).join("")}</select><small style="color:var(--text-3)">Ctrl+Shift+${k[n]}</small></label>`).join("");
+}
+$("#keys-cfg").addEventListener("change", async (e) => {
+  const n = e.target.dataset.key; if (!n) return;
+  const keys = { ...(st.keys || {}), [n]: e.target.value };
+  if (new Set(Object.values({ ...Object.fromEntries(KEYN.map(([x, , d]) => [x, d])), ...keys })).size < KEYN.length) { say("Ta litera jest już zajęta przez inny skrót."); return renderKeys(); }
+  await set({ keys }); renderKeys();
+});
+$("#auto-theme").checked = !!U.load("majestic-wyglad-v1", {}).autoTheme;
+$("#auto-theme").addEventListener("change", (e) => { U.save("majestic-wyglad-v1", { ...U.load("majestic-wyglad-v1", {}), autoTheme: e.target.checked }); window.parent.postMessage({ __reloadAll: true }, "*"); });
 /* układ: zakładki, szybkie akcje, kompakt */
 const TABS = [["dzis", "Dziś"], ["mapa", "Mapa"], ["kontakty", "Kontakty"], ["sesje", "Statystyki"], ["minutniki", "Minutniki"], ["zarobki", "Zarobki"], ["pojazdy", "Rynek"], ["crafting", "Crafting"], ["rp", "Postać i RP"], ["ekipa", "Ekipa"]];
 const QAN = [["collect", "Zbieranie"], ["payday", "PayDay"], ["note", "Notatka"], ["shot", "Zrzut"], ["widget", "Widżet"], ["search", "Szukaj"]];
@@ -441,7 +460,7 @@ $("#pack-in").addEventListener("click", async () => {
 });
 $("#widget").addEventListener("click", () => Host.call("open_widget").then(() => U.toast("Widżet jest w prawym górnym rogu ekranu")).catch(() => U.toast("Widżet działa w aplikacji Majestic Companion")));
 renderLook();
-load().then(loadRun).then(loadDiscord).then(loadCloud).then(loadPhone);
+load().then(loadRun).then(loadDiscord).then(loadCloud).then(loadPhone).then(renderKeys);
 })();
 </script>
 </body>

@@ -221,6 +221,7 @@ function collect() {
     out.push({ kind: "Tekst RP · " + tab, text: line, sub: "Enter kopiuje do schowka", go: () => { copyText(line.replaceAll("{imię}", "osobie")); } });
   }));
   store.get("majestic-minutniki-v1", []).filter((t) => t.end > Date.now()).forEach((t) => out.push({ kind: "Minutnik", text: t.name, go: () => show("minutniki") }));
+  if (wikiSearch) out.push(...wikiSearch);
   return out;
 }
 /* kalkulator: tylko cyfry, + - * / ( ), przecinek/kropka i k/m (tysiące, miliony) */
@@ -246,7 +247,7 @@ function renderSearch() {
     || `<li class="s-none">Nic nie znaleziono dla „${esc($("#s-q").value)}”.</li>`;
   $("#s-res .on")?.scrollIntoView({ block: "nearest" });
 }
-function openSearch() { $("#search").hidden = false; $("#s-q").value = ""; cursor = 0; renderSearch(); setTimeout(() => $("#s-q").focus(), 10); }
+function openSearch() { loadWikiSearch(); $("#search").hidden = false; $("#s-q").value = ""; cursor = 0; renderSearch(); setTimeout(() => $("#s-q").focus(), 10); }
 function closeSearch() { $("#search").hidden = true; frames[current]?.contentWindow?.focus(); }
 function pick(i) { const r = results[i]; if (!r) return; closeSearch(); r.go(); }
 $("#s-q").addEventListener("input", () => { cursor = 0; renderSearch(); });
@@ -462,6 +463,7 @@ if (!store.get("majestic-kreator-v1", false) && !store.get("majestic-samouczek-v
 else if (!store.get("majestic-samouczek-v1", false)) setTimeout(showTour, 1500);
 /* „Co nowego” po aktualizacji */
 const CHANGES = {
+  "2.10.0": ["Własne skróty Ctrl+Shift+litera (Ustawienia → Skróty w grze)", "Planer sesji krok po kroku (Minutniki), widoczny też w widżecie", "Wyszukiwarka szuka pojazdów, nieruchomości i przepisów z wiki", "Warstwy tras i stref na mapie, każdą można ukryć", "Historia cen pojazdów: strzałka ▲▼ przy cenie", "Ekipa: porównanie $/h i najlepszej pracy, ranking na Discorda, kod ekipy jako QR", "Historia postaci do PDF (karta, dziennik, galeria)", "Motyw według pory dnia"],
   "2.9.0": ["Kreator pierwszego uruchomienia (serwer, postać, frakcja, praca)", "Zgłoś błąd jednym kliknięciem (Ustawienia)", "Ukrywanie i kolejność zakładek", "Szybkie akcje na górnym pasku", "Kalkulator w wyszukiwarce: wpisz np. 1.2m-450k", "Notatki z kategoriami i przypinaniem", "Przypomnienia cykliczne (co tydzień, co X dni)", "Tryb kompaktowy okna", "Dzienny cel zbierania z serią dni w widżecie"],
 };
 setTimeout(async () => {  // po starcie: API pywebview pojawia się dopiero po chwili
@@ -494,6 +496,32 @@ function renderQa() {
 $("#qa").addEventListener("click", (e) => { const b = e.target.closest("[data-qa]"); if (b) { QA[b.dataset.qa][1](); setTimeout(renderQa, 300); } });
 setInterval(renderQa, 5000);
 applyLayout();
+/* planer sesji: kroki po kolei, każdy z własnym czasem */
+const PLKEY = "majestic-plan-v1";
+window.__plan = (cmd) => {
+  const p = store.get(PLKEY, { steps: [], run: null });
+  if (cmd === "start" && p.steps.length) { p.run = { i: 0, end: Date.now() + p.steps[0].min * 60000 }; api()?.notify("Plan sesji: start", `Teraz: ${p.steps[0].name} (${p.steps[0].min} min)`); }
+  if (cmd === "next" && p.run) p.run.end = Date.now();
+  if (cmd === "stop") p.run = null;
+  store.set(PLKEY, p); planTick(); return p;
+};
+function planTick() {
+  const p = store.get(PLKEY, { steps: [], run: null }); if (!p.run || Date.now() < p.run.end) return;
+  p.run.i++;
+  if (p.run.i >= p.steps.length) { p.run = null; api()?.notify("Plan sesji zakończony", "Wszystkie kroki zrobione."); }
+  else { const s = p.steps[p.run.i]; p.run.end = Date.now() + s.min * 60000; api()?.notify("Plan sesji: następny krok", `Teraz: ${s.name} (${s.min} min)`); }
+  store.set(PLKEY, p); frames.minutniki?.contentWindow?.postMessage({ __payload: { plan: true } }, "*");
+}
+setInterval(planTick, 5000);
+/* dane z wiki w wyszukiwarce: pojazdy, nieruchomości, przepisy (wczytane raz, przy pierwszym szukaniu) */
+let wikiSearch = null;
+async function loadWikiSearch() {
+  if (wikiSearch) return; wikiSearch = []; const a = api(); if (!a) return;
+  try { ((await a.vehicles())?.items || []).forEach((v) => wikiSearch.push({ kind: "Pojazd", text: v[1], sub: v[8] ? "$" + v[8].toLocaleString("pl-PL") : "", go: () => show("pojazdy") })); } catch {}
+  try { ((await a.crafting())?.recipes || []).forEach((r) => wikiSearch.push({ kind: "Przepis", text: r.n, sub: r.ing.map((x) => x[0]).join(", ").slice(0, 80), go: () => show("crafting") })); } catch {}
+  try { const r = await a.wiki_list("realties"); ((r && r.items) || r || []).forEach((x) => Array.isArray(x.mapPosition) && wikiSearch.push({ kind: "Nieruchomość", text: (x.type === "house" ? "Dom " : x.type === "apartment" ? "Mieszkanie " : "Lokal ") + x.serial, sub: x.price ? "$" + x.price.toLocaleString("pl-PL") + (x.garageSlots ? " · garaż " + x.garageSlots : "") : "", go: () => show("mapa", { goto: x.mapPosition, label: (x.type === "house" ? "Dom " : "Lokal ") + x.serial }) })); } catch {}
+  if (!$("#search").hidden) renderSearch();
+}
 /* przypomnienia cykliczne: co tydzień o godzinie albo co X dni; sprawdzane co minutę */
 function nextDue(r, from) {
   const [h, m] = (r.time || "20:00").split(":").map(Number), d = new Date(from); d.setSeconds(0, 0); d.setHours(h, m);

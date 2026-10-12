@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.9.0"
+APP_VERSION = "2.10.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -262,6 +262,21 @@ class Api:
             return None
         self._window.evaluate_js(f"window.__shot && window.__shot({json.dumps(name)})")
         return name
+
+    def qr(self, text):
+        """Kod QR jako obrazek (data URL) do pokazania w aplikacji."""
+        import segno
+        return segno.make(str(text)[:300], error="m").png_data_uri(scale=8, border=2, dark="#0b1428", light="#ffffff")
+
+    def export_html(self, name, html):
+        """Zapisuje stronę i otwiera ją w przeglądarce: stamtąd Drukuj → Zapisz jako PDF."""
+        d = os.path.join(DATA_DIR, "eksport")
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, re.sub(r"[^\w\-]", "_", str(name))[:60] + ".html")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(str(html))
+        os.startfile(p)
+        return p
 
     def shots_base(self):
         return file_url(SHOTS_DIR) + "/"
@@ -933,7 +948,8 @@ start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 DEFAULT_SETTINGS = {"shotDirs": [], "overlayKey": "F10", "server": "PL1", "trayOnClose": True,
                     "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True, "compactOverlay": False,
                     "hotPresets": [1, 2, 3], "autoPayday": False, "cloudDir": "", "streamer": False,
-                    "ntfyTopic": "", "widgetAuto": False, "widgetAlpha": 100}
+                    "ntfyTopic": "", "widgetAuto": False, "widgetAlpha": 100,
+                    "keys": {"note": "N", "collect": "Z", "add": "X", "shot": "S"}}
 NTFY_RE = re.compile(r"^[A-Za-z0-9_-]{12,64}$")
 WEBHOOK_RE = re.compile(r"^https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+$")
 VK = {f"F{i}": 0x6F + i for i in range(1, 13)}
@@ -1015,10 +1031,11 @@ def start_hotkey(api):
         _hotkey["thread_id"] = kernel32.GetCurrentThreadId()
         if vk:
             user32.RegisterHotKey(None, 1, 0x4000, vk)  # MOD_NOREPEAT
-        user32.RegisterHotKey(None, 2, 0x4000 | 0x0002 | 0x0004, 0x4E)  # Ctrl+Shift+N: szybka notatka
-        user32.RegisterHotKey(None, 20, 0x4000 | 0x0002 | 0x0004, 0x5A)  # Ctrl+Shift+Z: start/stop licznika zbierania
-        user32.RegisterHotKey(None, 21, 0x4000 | 0x0002 | 0x0004, 0x58)  # Ctrl+Shift+X: +1 do licznika
-        user32.RegisterHotKey(None, 22, 0x4000 | 0x0002 | 0x0004, 0x53)  # Ctrl+Shift+S: zrzut do galerii
+        # Ctrl+Shift+litera z Ustawień (domyślnie N notatka, Z zbieranie, X +1, S zrzut)
+        keys = {**DEFAULT_SETTINGS["keys"], **(load_settings().get("keys") or {})}
+        letter = lambda k, d: ord(k.upper()) if isinstance(k, str) and len(k) == 1 and k.upper().isalpha() else ord(d)
+        for hid, name in ((2, "note"), (20, "collect"), (21, "add"), (22, "shot")):
+            user32.RegisterHotKey(None, hid, 0x4000 | 0x0002 | 0x0004, letter(keys.get(name), DEFAULT_SETTINGS["keys"][name]))
         for n in (1, 2, 3):  # Ctrl+Shift+1..3: pierwsze trzy szybkie minutniki
             user32.RegisterHotKey(None, 10 + n, 0x4000 | 0x0002 | 0x0004, 0x30 + n)
         msg = wintypes.MSG()
