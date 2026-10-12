@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.7.0"
+APP_VERSION = "2.8.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -246,6 +246,22 @@ class Api:
         except OSError:
             pass
         return True
+
+    def open_shot(self, name):
+        p = os.path.join(SHOTS_DIR, os.path.basename(str(name)))
+        if os.path.isfile(p):
+            os.startfile(p)
+        return True
+
+    def quick_shot(self):
+        """Ctrl+Shift+S: zrzut całego ekranu do galerii aplikacji."""
+        try:
+            from PIL import ImageGrab
+            name = self._store(ImageGrab.grab())
+        except Exception:
+            return None
+        self._window.evaluate_js(f"window.__shot && window.__shot({json.dumps(name)})")
+        return name
 
     def shots_base(self):
         return file_url(SHOTS_DIR) + "/"
@@ -484,6 +500,10 @@ class Api:
         env = dict(os.environ, MJ_T=str(title)[:120], MJ_B=str(text)[:240])  # tekst przez zmienne: bez wstrzykiwania w polecenie
         subprocess.Popen(["powershell", "-NoProfile", "-Command", ps], env=env, creationflags=NO_WINDOW)
         self.push(title, text)
+        try:  # asystent głosowy: główne okno czyta tytuł, jeśli włączony w Ustawieniach
+            self._window.evaluate_js(f"window.__speak && window.__speak({json.dumps(str(title)[:120])})")
+        except Exception:
+            pass
         return True
 
     def push(self, title, text):
@@ -979,6 +999,7 @@ def start_hotkey(api):
         user32.RegisterHotKey(None, 2, 0x4000 | 0x0002 | 0x0004, 0x4E)  # Ctrl+Shift+N: szybka notatka
         user32.RegisterHotKey(None, 20, 0x4000 | 0x0002 | 0x0004, 0x5A)  # Ctrl+Shift+Z: start/stop licznika zbierania
         user32.RegisterHotKey(None, 21, 0x4000 | 0x0002 | 0x0004, 0x58)  # Ctrl+Shift+X: +1 do licznika
+        user32.RegisterHotKey(None, 22, 0x4000 | 0x0002 | 0x0004, 0x53)  # Ctrl+Shift+S: zrzut do galerii
         for n in (1, 2, 3):  # Ctrl+Shift+1..3: pierwsze trzy szybkie minutniki
             user32.RegisterHotKey(None, 10 + n, 0x4000 | 0x0002 | 0x0004, 0x30 + n)
         msg = wintypes.MSG()
@@ -987,6 +1008,8 @@ def start_hotkey(api):
                 try:
                     if msg.wParam == 2:
                         api.toggle_note()
+                    elif msg.wParam == 22:
+                        api.quick_shot()
                     elif msg.wParam in (20, 21):
                         api.collect("toggle" if msg.wParam == 20 else "add", 1)
                     elif 11 <= msg.wParam <= 13:
@@ -996,7 +1019,7 @@ def start_hotkey(api):
                 except Exception:
                     pass
         user32.UnregisterHotKey(None, 1)
-        for hid in (2, 11, 12, 13, 20, 21):
+        for hid in (2, 11, 12, 13, 20, 21, 22):
             user32.UnregisterHotKey(None, hid)
 
     threading.Thread(target=loop, daemon=True).start()

@@ -188,6 +188,12 @@ async function watchServer() {
     const hist = store.get("majestic-gracze-v1", []).filter((h) => h.t > Date.now() - 14 * 86400000);
     hist.push({ t: Date.now(), n: s.players, s: id });
     store.set("majestic-gracze-v1", hist);
+    // ranking serwerów: wszystkie serwery co ok. 15 minut, 7 dni wstecz
+    const all = store.get("majestic-serwery-hist-v1", []);
+    if (!all.length || Date.now() - all[all.length - 1].t > 14 * 60000) {
+      all.push({ t: Date.now(), p: Object.fromEntries((live.servers || []).filter((x) => x.status && !x.techWorks).map((x) => [x.id, x.players])) });
+      store.set("majestic-serwery-hist-v1", all.filter((h) => h.t > Date.now() - 7 * 86400000));
+    }
     if (lastSrv) {
       if (s.techWorks && !lastSrv.techWorks) { a.notify("Przerwa techniczna", `${s.name}: serwer ma przerwę techniczną.`); a.discord_send(`🛠️ **${s.name}**: serwer ma przerwę techniczną.`, "dcServer"); }
       if (!s.techWorks && lastSrv.techWorks) { a.notify("Serwer znowu działa", `${s.name} wrócił po przerwie technicznej.`); a.discord_send(`✅ **${s.name}** znowu działa (${s.players} graczy).`, "dcServer"); }
@@ -377,11 +383,26 @@ function billCheck() {
   if (due.length) a.notify("Opłaty do zrobienia", due.map((x) => x.name).join(", ") + " · szczegóły w Zarobkach");
 }
 setTimeout(billCheck, 60000); setInterval(billCheck, 3600000);
+/* asystent głosowy: krótkie komunikaty czytane przez syntezator Windows */
+window.__speak = (t) => {
+  if (!prefs().voice || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(String(t)); u.lang = "pl-PL"; u.rate = 1.05;
+  const v = speechSynthesis.getVoices().find((x) => x.lang.startsWith("pl")); if (v) u.voice = v;
+  speechSynthesis.speak(u);
+};
+/* Ctrl+Shift+S: zrzut trafia do galerii w Postać i RP */
+window.__shot = (name) => {
+  const g = store.get("majestic-galeria-v1", []);
+  g.push({ name, at: Date.now(), cap: "", tags: [] }); store.set("majestic-galeria-v1", g);
+  frames.rp?.contentWindow?.postMessage({ __payload: { gallery: true } }, "*");
+  api()?.notify("Zrzut zapisany", "Dodaj opis w Postać i RP → Galeria");
+};
 const TOUR = [
   ["Witaj w Majestic Companion", "Krótki przegląd w 5 krokach. Możesz go pominąć i włączyć ponownie w Ustawieniach."],
   ["Zakładki po lewej", "Ctrl+1…0 przełącza zakładki. Dziś pokazuje zarobek, minutniki, kalendarz i zadania."],
   ["Szukaj wszędzie", "Ctrl+Spacja otwiera wyszukiwarkę: zakładki, pojazdy, nieruchomości, przepisy."],
   ["W grze", "Ctrl+Shift+N to szybka notatka, Ctrl+Shift+1…3 minutniki, F10 nakładka z PayDay."],
+  ["Zrzut i głos", "Ctrl+Shift+S robi zrzut ekranu do galerii. W Ustawieniach włączysz głos, który czyta ważne powiadomienia."],
   ["Licznik zbierania", "Ctrl+Shift+Z start/stop, Ctrl+Shift+X +1 sztuka. Po zatrzymaniu zarobek zapisze się sam. Widżet pokazuje wszystko nad grą."],
   ["Ekipa", "Wpisz ten sam kod co znajomi w zakładce Mapa → Ekipa: wspólne znaczniki, czat i ranking tygodnia."],
 ];

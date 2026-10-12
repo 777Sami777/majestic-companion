@@ -206,11 +206,22 @@ function liveHtml() {
     <div class="panel"><h2>Serwer na żywo <span>${new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</span></h2>
       ${mine ? `<div class="srv-now ${mine.status && !mine.techWorks ? "ok" : "bad"}"><b>${mine.players}</b><div><strong>${esc(mine.name)}</strong><small>graczy online · ${state(mine)}</small></div></div>` : ""}
       ${peakHtml()}
+      ${rankHtml()}
       <ul class="srv-list">${eu.map((s) => `<li class="${s.id === (mine && mine.id) ? "me" : ""}"><span>${esc(s.name)}</span><small>${state(s)}</small><b>${s.players}</b></li>`).join("")}</ul></div>
     ${live.news.length ? `<div class="panel"><h2>Newsy Majestic</h2><ul class="news">${live.news.map((n) => `<li>${n.previewUrl ? `<img src="${esc(n.previewUrl)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<div><b>${esc(n.title)}</b><small>${new Date(n.publishedAt).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}</small></div></li>`).join("")}</ul></div>` : ""}
   </div>`;
 }
 /* godziny szczytu: średnia liczba graczy w każdej godzinie z zapisów co 10 min (ostatnie 14 dni) */
+/* ranking: średnia graczy o tej godzinie z 7 dni, najmniej zatłoczone na górze */
+function rankHtml() {
+  let hist = []; try { hist = JSON.parse(localStorage.getItem("majestic-serwery-hist-v1")) || []; } catch {}
+  const hr = new Date().getHours(), at = hist.filter((h) => Math.abs(new Date(h.t).getHours() - hr) <= 1), by = {};
+  at.forEach((h) => Object.entries(h.p).forEach(([id, n]) => (by[id] ||= []).push(n)));
+  const names = Object.fromEntries((live?.servers || []).map((s) => [s.id, s.name]));
+  const rows = Object.entries(by).filter(([, a]) => a.length >= 2).map(([id, a]) => [id, a.reduce((x, y) => x + y, 0) / a.length]).sort((a, b) => a[1] - b[1]);
+  if (!rows.length) return `<p class="note">Ranking serwerów pojawi się, gdy aplikacja pozbiera dane o tej porze (włączona przez kilka dni).</p>`;
+  return `<h3 style="margin:14px 0 6px;font-size:13px;color:var(--text-3)">Najmniej zatłoczone ok. ${hr}:00 (średnia z 7 dni)</h3><ul class="srv-list">${rows.slice(0, 6).map(([id, n]) => `<li><span>${esc(names[id] || id)}</span><small>${by[id].length} pomiarów</small><b>${Math.round(n)}</b></li>`).join("")}</ul>`;
+}
 function peakHtml() {
   let hist = [];
   try { hist = (JSON.parse(localStorage.getItem("majestic-gracze-v1")) || []).filter((h) => h.s === myServer); } catch {}

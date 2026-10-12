@@ -886,7 +886,7 @@ function contactsHtml(m) {
 }
 Host.onPayload((p) => {
   if (Array.isArray(p.goto)) { const ll = toLL(p.goto[0], p.goto[1]); fly(ll, 4); L.popup({ className: "cd-pop" }).setLatLng(ll).setContent(`<b>${esc(p.label || "Miejsce")}</b>`).openOn(map); return; }
-  if (p.crewStore) { if (crew) crewSend({ op: "store", items: p.crewStore, by: crewNick() }); return; }
+  if (p.crewStore) { if (crew) crewSend({ op: "store", items: p.crewStore, events: p.crewSched || undefined, by: crewNick() }); return; }
   if (p.crewTimer) { if (!crew) return toast("Najpierw połącz się z mapą ekipy (Mapa → Mapa ekipy na żywo)"); crewSend({ op: "timer", name: String(p.crewTimer.name).slice(0, 40), min: Math.min(1440, +p.crewTimer.min || 0), by: crewNick() }); return; }
   if (p.select) { const m = state && state.markers.find((x) => x.id === p.select); if (m) select(m.id, true); else toast("Tego znacznika już nie ma na mapie"); }
 });
@@ -1018,6 +1018,9 @@ $("#wiki-sync").addEventListener("click", async (e) => {
 const drawGroup = L.layerGroup().addTo(map);
 let drawing = null;   // { kind: "route" | "zone", pts: [[lat,lng]], preview }
 const DRAW_COLORS = ["#f5b544", "#ff5a6a", "#4d8dff", "#3ddc97", "#b07cff", "#2fd4d4"];
+/* czas i koszt paliwa trasy z ustawień (km/h, l/100 km, $/l); trasa w grze jest dłuższa niż prosta, stąd ×1,3 */
+const FUEL_DEF = { kmh: 90, l100: 12, price: 4 };
+function tripInfo(m) { const f = { ...FUEL_DEF, ...(state?.fuel || {}) }, km = (m * 1.3) / 1000; return `~${Math.max(1, Math.round((km / f.kmh) * 60))} min, ~$${Math.round((km * f.l100 / 100) * f.price)}`; }
 const dist = (pts) => pts.slice(1).reduce((a, p, i) => a + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
 const area = (pts) => Math.abs(pts.reduce((a, p, i) => { const q = pts[(i + 1) % pts.length]; return a + p[1] * q[0] - q[1] * p[0]; }, 0) / 2);
 
@@ -1031,11 +1034,18 @@ function drawShape(d, group = drawGroup) {
   return layer.addTo(group);
 }
 function renderDrawings() {
-  drawGroup.clearLayers();
+  if (!document.getElementById("fuel-form")) {
+    const f = document.createElement("form"); f.id = "fuel-form"; f.autocomplete = "off"; f.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:12px;align-items:center";
+    const v = { ...FUEL_DEF, ...(state.fuel || {}) };
+    f.innerHTML = `<small style="width:100%;color:var(--text-3)">Czas i paliwo tras:</small><label>km/h <input name="kmh" type="number" min="10" max="300" value="${v.kmh}" style="width:58px"></label><label>l/100 <input name="l100" type="number" min="1" max="60" value="${v.l100}" style="width:52px"></label><label>$/l <input name="price" type="number" min="0" max="100" step="0.1" value="${v.price}" style="width:56px"></label>`;
+    f.addEventListener("change", () => { state.fuel = { kmh: +f.kmh.value || FUEL_DEF.kmh, l100: +f.l100.value || FUEL_DEF.l100, price: +f.price.value || 0 }; save(); renderDrawings(); });
+    $("#draw-list").after(f);
+  }  drawGroup.clearLayers();
   (state.drawings || []).forEach((d) => drawShape(d));
   const list = state.drawings || [];
   $("#draw-list").innerHTML = list.length ? list.map((d, i) => `<li><button class="place" data-draw="${d.id}" style="--c:${d.color};--i:${i}"><i></i>
-      <span>${esc(d.name)}</span><small>${d.kind === "route" ? fmtDist(dist(d.pts)) : "strefa"}</small></button>
+
+      <span>${esc(d.name)}</span><small>${d.kind === "route" ? fmtDist(dist(d.pts)) + " · " + tripInfo(dist(d.pts)) : "strefa"}</small></button>
       ${d.kind === "route" && d.pts.length > 2 ? `<button class="draw-del" data-opt-draw="${d.id}" title="Ustaw punkty w najkrótszej kolejności (od pierwszego)"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 4 7-7M14 9h6v6"/></svg></button>` : ""}
       <button class="draw-del" data-del-draw="${d.id}" title="Usuń"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join("")
     : `<li class="empty">Narysuj trasę (R) albo strefę (Z).</li>`;
@@ -1343,7 +1353,7 @@ function crewApply(ev) {
   if (ev.op === "team" && ev.team) { const t = { name: String(ev.team.name || "").slice(0, 32), tag: String(ev.team.tag || "").slice(0, 5), color: /^#[0-9a-f]{6}$/i.test(ev.team.color) ? ev.team.color : "#2563eb" }; U.save(CREW_KEY, { ...U.load(CREW_KEY, {}), team: t }); return renderCrewTeam(); }
   if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); Host.call("push", "Ekipa: " + String(ev.by || "?").slice(0, 24), ev.t.slice(0, 300)).catch(() => {}); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
   if (ev.op === "pin" && Number.isFinite(ev.x) && Number.isFinite(ev.y)) return showCrewPin(ev);
-  if (ev.op === "store" && Array.isArray(ev.items)) { window.parent.postMessage({ __toEkipa: { store: ev.items.slice(0, 200), by: ev.by } }, "*"); return; }
+  if (ev.op === "store" && Array.isArray(ev.items)) { window.parent.postMessage({ __toEkipa: { store: ev.items.slice(0, 200), sched: Array.isArray(ev.events) ? ev.events.slice(0, 100) : undefined, by: ev.by } }, "*"); return; }
   if (ev.op === "timer" && ev.min > 0) { window.parent.postMessage({ __toTimers: { name: ev.name, min: ev.min, by: ev.by } }, "*"); return toast(`${ev.by || "Ekipa"} ustawił minutnik: ${ev.name}`); }
   const list = ev.op === "put" ? [ev.m] : ev.op === "snap" ? ev.ms || [] : [];
   let changed = false;

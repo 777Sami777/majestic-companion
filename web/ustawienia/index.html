@@ -73,6 +73,14 @@
     <div class="row"><div class="txt"><b>Widżet tylko w grze</b><small>Widżet chowa się, gdy przełączysz się z gry na inne okno, i wraca, gdy wrócisz do gry.</small></div><label class="tog"><input type="checkbox" id="w-auto"><i></i></label></div>
     <div class="row"><div class="txt"><b>Przezroczystość widżetu</b><small id="w-alpha-v">100%</small></div><input type="range" id="w-alpha" min="30" max="100" step="5" aria-label="Przezroczystość widżetu" style="max-width:200px"></div>
   </section>
+  <section class="panel rise" style="--d:2"><h2>Głos i bateria</h2>
+    <div class="row"><div class="txt"><b>Asystent głosowy</b><small>Czyta na głos ważne powiadomienia: PayDay, minutniki, wojny, koniec zbierania. Nie musisz patrzeć na ekran.</small></div><div class="btns"><button class="btn ghost small" id="voice-test" type="button">Posłuchaj</button><label class="tog"><input type="checkbox" id="voice"><i></i></label></div></div>
+    <div class="row"><div class="txt"><b>Tryb oszczędzania baterii</b><small>Wyłącza animacje. „Auto” włącza go tylko, gdy laptop nie jest podłączony do prądu.</small></div><div class="chips" id="eco"><button class="chip" data-eco="off" type="button">Wyłączony</button><button class="chip" data-eco="auto" type="button">Auto</button><button class="chip" data-eco="on" type="button">Zawsze</button></div></div>
+  </section>
+  <section class="panel rise" style="--d:2"><h2>Drugi komputer</h2>
+    <div class="row"><div class="txt"><b>Synchronizacja przez kod</b><small>Na obu komputerach wpisz ten sam tajny kod (min. 10 znaków). „Wyślij” wysyła zaszyfrowaną kopię wszystkich danych, „Odbierz” na drugim komputerze pokazuje, co się zmieniło. Kopia czeka na serwerze do 12 godzin.</small></div>
+      <div class="btns"><input type="password" id="sync-code" placeholder="Wspólny tajny kod" aria-label="Kod synchronizacji" autocomplete="off" style="max-width:180px"><button class="btn primary small" id="sync-send" type="button">Wyślij</button><button class="btn ghost small" id="sync-get" type="button">Odbierz</button></div></div>
+  </section>
   <section class="panel rise" style="--d:2"><h2>Postacie</h2>
     <div class="row"><div class="txt"><b>Profile postaci</b><small>Każda postać ma osobne zarobki, kartę, dziennik, cele i majątek. Mapa, kontakty i ustawienia są wspólne.</small></div><div class="btns"><select id="prof" aria-label="Aktywna postać" style="max-width:200px"></select><button class="btn ghost small" id="prof-add" type="button">+ Postać</button><button class="btn ghost small" id="prof-del" type="button">Usuń</button></div></div>
   </section>
@@ -203,12 +211,55 @@ $("#prof-del").addEventListener("click", () => {
   switchProf(to); const q = profs(); q.list = q.list.filter((x) => x.id !== gone); U.save(PROF, q); localStorage.removeItem("majestic-p-" + gone); renderProf();
 });
 renderProf();
+/* głos i tryb oszczędny (localStorage, jak wygląd) */
+const lookP = () => U.load("majestic-wyglad-v1", {});
+function renderVoiceEco() { $("#voice").checked = !!lookP().voice; document.querySelectorAll("[data-eco]").forEach((b) => b.classList.toggle("on", b.dataset.eco === (lookP().eco || "off"))); }
+$("#voice").addEventListener("change", (e) => { U.save("majestic-wyglad-v1", { ...lookP(), voice: e.target.checked }); renderVoiceEco(); });
+$("#voice-test").addEventListener("click", () => { const u = new SpeechSynthesisUtterance("PayDay za minutę"); u.lang = "pl-PL"; speechSynthesis.speak(u); });
+$("#eco").addEventListener("click", (e) => { const b = e.target.closest("[data-eco]"); if (!b) return; U.save("majestic-wyglad-v1", { ...lookP(), eco: b.dataset.eco }); renderVoiceEco(); window.parent.postMessage({ __reloadAll: true }, "*"); });
+renderVoiceEco();
+/* drugi komputer: zaszyfrowana kopia przez ntfy.sh (duże wiadomości ntfy zamienia w załącznik) */
+async function syncKey(code) {
+  const raw = new TextEncoder().encode("majestic-sync:" + code.trim());
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", raw));
+  const topic = "mjs" + [...h.slice(0, 14)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const key = await crypto.subtle.importKey("raw", await crypto.subtle.digest("SHA-256", new Uint8Array([...raw, 7])), "AES-GCM", false, ["encrypt", "decrypt"]);
+  return { topic, key };
+}
+const b64e = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 32768) s += String.fromCharCode(...u8.subarray(i, i + 32768)); return btoa(s); };
+const b64d = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const syncCode = () => { const c = $("#sync-code").value; if (c.trim().length < 10) { say("Kod musi mieć co najmniej 10 znaków."); return null; } return c; };
+$("#sync-send").addEventListener("click", async () => {
+  const c = syncCode(); if (!c) return;
+  const { topic, key } = await syncKey(c), iv = crypto.getRandomValues(new Uint8Array(12));
+  const d = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith("majestic-") && !k.startsWith("majestic-p-")) d[k] = localStorage.getItem(k); }
+  const enc = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify({ app: "majestic-companion", at: Date.now(), data: d }))));
+  try { const r = await fetch("https://ntfy.sh/" + topic, { method: "PUT", body: b64e(iv) + "." + b64e(enc), headers: { Filename: "sync.txt" } }); say(r.ok ? "Wysłano. Na drugim komputerze wpisz ten sam kod i kliknij Odbierz (w ciągu 12 godzin)." : "Serwer odrzucił kopię (" + r.status + ")."); }
+  catch (e) { say("Brak połączenia: " + e.message); }
+});
+$("#sync-get").addEventListener("click", async () => {
+  const c = syncCode(); if (!c) return;
+  const { topic, key } = await syncKey(c);
+  try {
+    const lines = (await (await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=12h`)).text()).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((m) => m.event === "message");
+    const m = lines[lines.length - 1]; if (!m) return say("Nic nie czeka. Najpierw kliknij Wyślij na drugim komputerze.");
+    const body = m.attachment ? await (await fetch(m.attachment.url)).text() : m.message;
+    const [iv, d] = body.trim().split(".");
+    const pack = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64d(iv) }, key, b64d(d))));
+    say("Kopia z " + new Date(pack.at).toLocaleString("pl-PL") + ". Wybierz, co przywrócić.");
+    pickRestore(pack.data);
+  } catch (e) { say(/decrypt|operation/i.test(e.name + e.message) ? "Zły kod albo uszkodzona kopia." : "Nie udało się odebrać: " + e.message); }
+});
 $("#restore").addEventListener("click", async () => {
   try {
     const raw = await Host.call("restore"); if (!raw) return;
-    const { data } = JSON.parse(raw);
+    pickRestore(JSON.parse(raw).data);
+  } catch (e) { say("Nie udało się wczytać kopii: " + e.message); }
+});
+function pickRestore(data) {
+  {
     // podgląd zmian: każdą część kopii można przywrócić osobno
-    const L = { "majestic-mapa-v1": "Mapa i znaczniki", "majestic-kontakty-v1": "Kontakty", "majestic-zarobki-v1": "Zarobki", "majestic-minutniki-v1": "Minutniki", "majestic-notatki-v1": "Notatki", "majestic-ekipa-v1": "Ekipa: grafik i magazyn", "majestic-dziennik-v1": "Dziennik postaci", "majestic-postac-v1": "Karta postaci", "majestic-rp-v1": "Teksty RP", "majestic-crafting-v1": "Kalkulator craftingu", "majestic-cele-v1": "Cele tygodnia", "majestic-cele-zakupy-v1": "Cele zakupowe", "majestic-majatek-v1": "Majątek", "majestic-taryfikator-v1": "Taryfikator mandatów", "majestic-wyglad-v1": "Wygląd", "majestic-zadania-v1": "Zadania dnia" };
+    const L = { "majestic-mapa-v1": "Mapa i znaczniki", "majestic-kontakty-v1": "Kontakty", "majestic-zarobki-v1": "Zarobki", "majestic-minutniki-v1": "Minutniki", "majestic-notatki-v1": "Notatki", "majestic-ekipa-v1": "Ekipa: grafik i magazyn", "majestic-dziennik-v1": "Dziennik postaci", "majestic-postac-v1": "Karta postaci", "majestic-rp-v1": "Teksty RP", "majestic-crafting-v1": "Kalkulator craftingu", "majestic-cele-v1": "Cele tygodnia", "majestic-cele-zakupy-v1": "Cele zakupowe", "majestic-majatek-v1": "Majątek", "majestic-taryfikator-v1": "Taryfikator mandatów", "majestic-wyglad-v1": "Wygląd", "majestic-zadania-v1": "Zadania dnia", "majestic-galeria-v1": "Galeria zrzutów", "majestic-radio-v1": "Kanały radia", "majestic-zakupy-v1": "Lista zakupów", "majestic-szablony-v1": "Szablony Discorda", "majestic-postacie-v1": "Lista postaci" };
     const rows = Object.entries(data || {}).filter(([k]) => k.startsWith("majestic-") && L[k]).map(([k, v]) => {
       const cur = localStorage.getItem(k); let n = ""; try { const a = JSON.parse(v), b = JSON.parse(cur); if (Array.isArray(a)) n = ` (kopia ${a.length}, teraz ${Array.isArray(b) ? b.length : 0})`; } catch {}
       return { k, v, st: cur === v ? "same" : cur == null ? "new" : "diff", n };
@@ -224,8 +275,8 @@ $("#restore").addEventListener("click", async () => {
       say("Przywrócono: " + pick.map((r) => L[r.k]).join(", ") + ". Odświeżam zakładki…");
       window.parent.postMessage({ __reload: true }, "*");
     };
-  } catch (e) { say("Nie udało się wczytać kopii: " + e.message); }
-});
+  }
+}
 $("#wiki").addEventListener("click", async (e) => {
   const b = e.currentTarget; b.disabled = true; b.textContent = "Pobieram…"; say("Pobieram warstwy z Majestic Wiki, to potrwa ok. 30 sekund…");
   try {

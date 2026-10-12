@@ -69,6 +69,7 @@
       </section>
     </div>
     <div class="grid">
+      <section class="panel rise" style="--d:4"><h2>Osiągnięcia <span id="ach-count"></span></h2><div id="ach" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px"></div></section>
       <section class="panel rise" style="--d:4"><h2>Kalendarz <span id="cal-m"></span> <button class="btn ghost small" id="cal-p" type="button" aria-label="Poprzedni miesiąc">‹</button><button class="btn ghost small" id="cal-n" type="button" aria-label="Następny miesiąc">›</button></h2><div class="cal" id="cal"></div></section>
       <section class="panel rise" style="--d:4"><h2>Notatki <span id="n-count"></span></h2><ul class="rows notes" id="notes"></ul></section>
       <section class="panel rise" style="--d:5"><h2>Aktualizacje i eventy Majestic</h2><ul class="rows" id="news"><li class="muted">Ładowanie…</li></ul></section>
@@ -144,6 +145,21 @@ function renderCal() {
   }
   $("#cal").innerHTML = html;
 }
+/* osiągnięcia: liczone z danych, które już są (sesje, zarobki, mapa, dziennik) */
+function renderAch() {
+  const S = (sessions || []).filter((s) => s.connected), hours = S.reduce((a, s) => a + s.played, 0) / 3600;
+  const earn = U.load("majestic-zarobki-v1", []), net = earn.reduce((a, l) => a + l.amt, 0);
+  const days = [...new Set(S.map((s) => dayStart(s.joined)))].sort((a, b) => a - b);
+  let streak = 0, best = 0; days.forEach((d, i) => { streak = i && d - days[i - 1] <= DAY + 3600000 ? streak + 1 : 1; best = Math.max(best, streak); });
+  const marks = (U.load("majestic-mapa-v1", {}).markers || []).length, journal = U.load("majestic-dziennik-v1", []).length, jobs = new Set(earn.filter((l) => l.amt > 0).map((l) => l.job)).size;
+  const A = [["Pierwsze kroki", "1 h gry", hours, 1], ["Stały bywalec", "24 h gry", hours, 24], ["Weteran", "100 h gry", hours, 100], ["Legenda Los Santos", "500 h gry", hours, 500],
+    ["Pierwszy grosz", "$10 000 na czysto", net, 1e4], ["Milioner", "$1 000 000 na czysto", net, 1e6], ["Rekin biznesu", "$10 000 000 na czysto", net, 1e7],
+    ["Codziennie w mieście", "7 dni gry z rzędu", best, 7], ["Kartograf", "25 znaczników na mapie", marks, 25], ["Kronikarz", "10 wpisów w dzienniku", journal, 10], ["Złota rączka", "5 różnych prac", jobs, 5]];
+  const done = A.filter((a) => a[2] >= a[3]).length;
+  $("#ach-count").textContent = `${done}/${A.length}`;
+  $("#ach").innerHTML = A.map(([n, d, v, goal]) => { const pct = Math.max(0, Math.min(100, (v / goal) * 100)), ok = pct >= 100;
+    return `<div style="padding:10px;border-radius:6px;background:var(--card);border:1px solid ${ok ? "var(--accent)" : "var(--line)"};${ok ? "" : "opacity:.75"}"><b style="display:block">${ok ? "★ " : ""}${n}</b><small style="color:var(--text-3)">${d}</small><div style="height:4px;border-radius:2px;background:var(--card-2);margin-top:6px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:var(--accent)"></i></div></div>`; }).join("");
+}
 $("#cal-p").addEventListener("click", () => { calOff--; renderCal(); });
 $("#cal-n").addEventListener("click", () => { calOff++; renderCal(); });
 $("#rep-img").addEventListener("click", async () => {
@@ -202,7 +218,7 @@ function renderSlow() {
 async function loadSlow() {
   if (!Host.available) return;
   try { sessions = (await Host.call("sessions")).sessions; } catch {}
-  renderCal();
+  renderCal(); renderAch();
   try { const st = await Host.call("get_settings"); if (st && st.server) myServer = String(st.server).toLowerCase(); } catch {}
   try { live = await Host.call("live"); } catch { live = { servers: [] }; }
   renderSlow();

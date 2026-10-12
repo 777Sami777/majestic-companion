@@ -82,6 +82,12 @@
     root.style.setProperty("--accent-ink", 0.299 * r + 0.587 * g + 0.114 * b > 160 ? "#0c182c" : "#ffffff");
   }
   applyLook();
+  // tryb oszczędny: wyłącza animacje; „auto” tylko na baterii
+  const eco = (on) => { let st = document.getElementById("eco-css"); if (on && !st) { st = document.createElement("style"); st.id = "eco-css"; st.textContent = "*,*::before,*::after{animation:none!important;transition:none!important}"; document.head.appendChild(st); } else if (!on && st) st.remove(); };
+  const ecoMode = prefs().eco || "off";
+  if (ecoMode === "on") eco(true);
+  else if (ecoMode === "auto" && navigator.getBattery) navigator.getBattery().then((b) => { const f = () => eco(!b.charging); f(); b.addEventListener("chargingchange", f); }).catch(() => {});
+  window.__eco = () => (document.getElementById("eco-css") ? true : false);
   // wersja angielska: słownik napisów doczytywany tylko po wybraniu English
   if (prefs().streamer && BASE) { const sm = document.createElement("script"); sm.src = BASE + "streamer.js"; document.head.appendChild(sm); }
   if (prefs().lang === "en" && BASE) { const sc = document.createElement("script"); sc.src = BASE + "i18n.js"; document.head.appendChild(sc); }
