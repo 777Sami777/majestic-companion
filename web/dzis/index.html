@@ -71,7 +71,7 @@
     <div class="grid">
       <section class="panel rise" style="--d:4"><h2>Osiągnięcia <span id="ach-count"></span></h2><div id="ach" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px"></div></section>
       <section class="panel rise" style="--d:4"><h2>Kalendarz <span id="cal-m"></span> <button class="btn ghost small" id="cal-p" type="button" aria-label="Poprzedni miesiąc">‹</button><button class="btn ghost small" id="cal-n" type="button" aria-label="Następny miesiąc">›</button></h2><div class="cal" id="cal"></div></section>
-      <section class="panel rise" style="--d:4"><h2>Notatki <span id="n-count"></span></h2><ul class="rows notes" id="notes"></ul></section>
+      <section class="panel rise" style="--d:4"><h2>Notatki <span id="n-count"></span></h2><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><input type="text" id="n-q" placeholder="Szukaj w notatkach…" aria-label="Szukaj w notatkach" style="flex:1;min-width:140px"><select id="n-cat" aria-label="Kategoria" style="width:auto"></select></div><ul class="rows notes" id="notes"></ul></section>
       <section class="panel rise" style="--d:5"><h2>Aktualizacje i eventy Majestic</h2><ul class="rows" id="news"><li class="muted">Ładowanie…</li></ul></section>
     </div>
   </div>
@@ -105,10 +105,20 @@ function renderFast() {
   $("#events").innerHTML = ev.map((e) => `<li><time>${new Date(e.at).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}</time><span>${esc(e.title)}<small>${dayStart(e.at) === today ? "dzisiaj" : new Date(e.at).toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "short" })}</small></span><span></span></li>`).join("") || `<li class="muted">Nic zaplanowanego. Dodaj akcję w zakładce Ekipa.</li>`;
 }
 // notatki osobno: odświeżanie co sekundę zabierałoby fokus i hover z przycisków
+const NCATS = ["Inne", "Numery", "Adresy", "Ceny", "Plany", "Ekipa"];
+document.addEventListener("input", (e) => { if (e.target.id === "n-q") renderNotes(); });
+document.addEventListener("change", (e) => {
+  if (e.target.id === "n-cat") return renderNotes();
+  const id = e.target.dataset && e.target.dataset.ncat; if (!id) return;
+  const ns = U.load("majestic-notatki-v1", []), n = ns.find((x) => x.id === id); if (n) { n.cat = e.target.value; U.save("majestic-notatki-v1", ns); renderNotes(); }
+});
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-pin]"); if (!b) return; const ns = U.load("majestic-notatki-v1", []), n = ns.find((x) => x.id === b.dataset.pin); if (n) { n.pin = !n.pin; U.save("majestic-notatki-v1", ns); renderNotes(); } });
 function renderNotes() {
-  const notes = U.load("majestic-notatki-v1", []).slice().reverse();
+  const q = ($("#n-q")?.value || "").trim().toLowerCase(), cf = $("#n-cat")?.value || "";
+  if ($("#n-cat") && !$("#n-cat").options.length) $("#n-cat").innerHTML = `<option value="">Wszystkie</option>` + NCATS.map((c) => `<option>${c}</option>`).join("");
+  const notes = U.load("majestic-notatki-v1", []).slice().reverse().filter((n) => (!q || n.t.toLowerCase().includes(q)) && (!cf || (n.cat || "Inne") === cf)).sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0));
   $("#n-count").textContent = notes.length || "";
-  $("#notes").innerHTML = notes.slice(0, 30).map((n) => `<li><div><p>${esc(n.t)}</p><small>${new Date(n.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></div><button class="x" data-del="${n.id}" title="Usuń notatkę" aria-label="Usuń notatkę">${xIcon}</button></li>`).join("") || `<li class="muted">Brak notatek. W grze naciśnij Ctrl+Shift+N, żeby szybko coś zapisać.</li>`;
+  $("#notes").innerHTML = notes.slice(0, 30).map((n) => `<li><div><p>${esc(n.t)}</p><small>${new Date(n.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></div><span style="display:flex;gap:4px;align-items:center"><select data-ncat="${n.id}" aria-label="Kategoria notatki" style="width:auto;padding:4px 6px;font-size:12px">${NCATS.map((c) => `<option ${(n.cat || "Inne") === c ? "selected" : ""}>${c}</option>`).join("")}</select><button class="x" data-pin="${n.id}" title="${n.pin ? "Odepnij" : "Przypnij na górze"}" aria-label="${n.pin ? "Odepnij" : "Przypnij"}" aria-pressed="${!!n.pin}" style="${n.pin ? "color:var(--accent)" : ""}"><svg viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/></svg></button><button class="x" data-del="${n.id}" title="Usuń notatkę" aria-label="Usuń notatkę">${xIcon}</button></span></li>`).join("") || `<li class="muted">Brak notatek. W grze naciśnij Ctrl+Shift+N, żeby szybko coś zapisać.</li>`;
 }
 /* zadania dnia: stała lista, odhaczenia kasują się o północy */
 const TKEY = "majestic-zadania-v1";

@@ -118,3 +118,25 @@ html.light .game .g-code{color:#fff}
 .rz-b{left:8px;right:8px;bottom:0;height:5px;cursor:ns-resize}
 .rz-rb{right:0;bottom:0;width:12px;height:12px;cursor:nwse-resize}
 .rz-lb{left:0;bottom:0;width:12px;height:12px;cursor:nesw-resize}
+
+/* szybkie akcje na pasku */
+.qa{display:flex;gap:4px;-webkit-app-region:no-drag}
+.qa button{height:28px;padding:0 10px;border-radius:4px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text-2);font:600 12px var(--din);letter-spacing:.03em;white-space:nowrap;cursor:pointer}
+.qa button:hover,.qa button:focus-visible{border-color:var(--accent);color:var(--text);outline:none}
+.qa button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff)}
+/* tryb kompaktowy okna: wąski pasek zakładek jak na małym ekranie */
+:root.compact{--nav:64px}
+:root.compact .tab span,:root.compact .tab kbd,:root.compact .brand b,:root.compact .clock,:root.compact .callsign{display:none}
+:root.compact .tab{justify-content:center;padding:0}
+:root.compact .brand{width:auto}
+.mjd{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:grid;place-items:center}
+.mjd>div{width:min(460px,92vw);max-height:86vh;overflow:auto;background:var(--panel-solid,#0b1428);color:var(--text,#eee);border:1px solid var(--line-2);border-radius:8px;padding:22px}
+.mjd h2{margin:0 0 10px;font-family:Bahnschrift,Segoe UI}
+.mjd ul{margin:0 0 16px;padding-left:18px;color:var(--text-2);line-height:1.6}
+.mjd label{display:grid;gap:4px;margin-bottom:10px;color:var(--text-2);font-size:13px}
+.mjd input,.mjd select{padding:8px 10px;border-radius:5px;border:1px solid var(--line-2);background:var(--input,#070f1c);color:var(--text)}
+.mjd .row{display:flex;gap:8px;justify-content:flex-end}
+/* przyciski w oknach dialogowych powłoki (common.css ładują tylko zakładki) */
+.mjd .btn,[role=dialog] .btn{height:34px;padding:0 14px;border-radius:5px;border:1px solid var(--line-2);background:transparent;color:var(--text);font:600 13px var(--din);letter-spacing:.02em;cursor:pointer}
+.mjd .btn.primary,[role=dialog] .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff)}
+.mjd .btn:focus-visible,[role=dialog] .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

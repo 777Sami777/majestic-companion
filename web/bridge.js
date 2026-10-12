@@ -82,6 +82,10 @@
     root.style.setProperty("--accent-ink", 0.299 * r + 0.587 * g + 0.114 * b > 160 ? "#0c182c" : "#ffffff");
   }
   applyLook();
+  // ostatnie błędy (do przycisku „Zgłoś błąd”), bez danych użytkownika
+  const logErr = (m) => { try { const k = "majestic-bledy-v1", a = JSON.parse(localStorage.getItem(k)) || []; a.push({ t: Date.now(), p: location.pathname.split("/web/")[1] || "", m: String(m).slice(0, 300) }); localStorage.setItem(k, JSON.stringify(a.slice(-10))); } catch {} };
+  window.addEventListener("error", (e) => logErr((e.message || "błąd") + (e.lineno ? " @" + e.lineno : "")));
+  window.addEventListener("unhandledrejection", (e) => logErr("promise: " + (e.reason && e.reason.message || e.reason)));
   // tryb oszczędny: wyłącza animacje; „auto” tylko na baterii
   const eco = (on) => { let st = document.getElementById("eco-css"); if (on && !st) { st = document.createElement("style"); st.id = "eco-css"; st.textContent = "*,*::before,*::after{animation:none!important;transition:none!important}"; document.head.appendChild(st); } else if (!on && st) st.remove(); };
   const ecoMode = prefs().eco || "off";

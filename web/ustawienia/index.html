@@ -73,6 +73,14 @@
     <div class="row"><div class="txt"><b>Widżet tylko w grze</b><small>Widżet chowa się, gdy przełączysz się z gry na inne okno, i wraca, gdy wrócisz do gry.</small></div><label class="tog"><input type="checkbox" id="w-auto"><i></i></label></div>
     <div class="row"><div class="txt"><b>Przezroczystość widżetu</b><small id="w-alpha-v">100%</small></div><input type="range" id="w-alpha" min="30" max="100" step="5" aria-label="Przezroczystość widżetu" style="max-width:200px"></div>
   </section>
+  <section class="panel rise" style="--d:2"><h2>Układ</h2>
+    <div class="row"><div class="txt"><b>Zakładki</b><small>Odznacz, żeby ukryć zakładkę; strzałki zmieniają kolejność.</small></div></div>
+    <ul id="tabs-cfg" style="list-style:none;padding:0;margin:0 0 10px;display:grid;gap:4px"></ul>
+    <div class="row"><div class="txt"><b>Szybkie akcje na pasku</b><small>Przyciski u góry okna, zawsze pod ręką.</small></div><div class="chips" id="qa-cfg"></div></div>
+    <div class="row"><div class="txt"><b>Tryb kompaktowy</b><small>Wąski pasek zakładek i węższe okno: wygodne obok gry w oknie.</small></div><label class="tog"><input type="checkbox" id="compact"><i></i></label></div>
+    <div class="row"><div class="txt"><b>Kreator</b><small>Serwer, postać, frakcja i praca w 30 sekund.</small></div><button class="btn ghost small" id="wizard" type="button">Uruchom kreator</button></div>
+    <div class="row"><div class="txt"><b>Zgłoś błąd</b><small>Otwiera gotowe zgłoszenie na GitHubie z wersją aplikacji i ostatnimi błędami (bez Twoich danych). Dopisz tylko, co się stało.</small></div><button class="btn ghost small" id="bug" type="button">Zgłoś błąd</button></div>
+  </section>
   <section class="panel rise" style="--d:2"><h2>Głos i bateria</h2>
     <div class="row"><div class="txt"><b>Asystent głosowy</b><small>Czyta na głos ważne powiadomienia: PayDay, minutniki, wojny, koniec zbierania. Nie musisz patrzeć na ekran.</small></div><div class="btns"><button class="btn ghost small" id="voice-test" type="button">Posłuchaj</button><label class="tog"><input type="checkbox" id="voice"><i></i></label></div></div>
     <div class="row"><div class="txt"><b>Tryb oszczędzania baterii</b><small>Wyłącza animacje. „Auto” włącza go tylko, gdy laptop nie jest podłączony do prądu.</small></div><div class="chips" id="eco"><button class="chip" data-eco="off" type="button">Wyłączony</button><button class="chip" data-eco="auto" type="button">Auto</button><button class="chip" data-eco="on" type="button">Zawsze</button></div></div>
@@ -211,6 +219,33 @@ $("#prof-del").addEventListener("click", () => {
   switchProf(to); const q = profs(); q.list = q.list.filter((x) => x.id !== gone); U.save(PROF, q); localStorage.removeItem("majestic-p-" + gone); renderProf();
 });
 renderProf();
+/* układ: zakładki, szybkie akcje, kompakt */
+const TABS = [["dzis", "Dziś"], ["mapa", "Mapa"], ["kontakty", "Kontakty"], ["sesje", "Statystyki"], ["minutniki", "Minutniki"], ["zarobki", "Zarobki"], ["pojazdy", "Rynek"], ["crafting", "Crafting"], ["rp", "Postać i RP"], ["ekipa", "Ekipa"]];
+const QAN = [["collect", "Zbieranie"], ["payday", "PayDay"], ["note", "Notatka"], ["shot", "Zrzut"], ["widget", "Widżet"], ["search", "Szukaj"]];
+const lay = () => { const L = U.load("majestic-zakladki-v1", { order: [], hidden: [] }); L.order = [...L.order, ...TABS.map((t) => t[0])].filter((m, i, a) => a.indexOf(m) === i && TABS.some((t) => t[0] === m)); return L; };
+const pushLayout = () => window.parent.postMessage({ __layout: true }, "*");
+function renderLayout() {
+  const L = lay(), name = Object.fromEntries(TABS);
+  $("#tabs-cfg").innerHTML = L.order.map((m, i) => `<li style="display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:5px;background:var(--card)"><label style="flex:1;display:flex;gap:8px;align-items:center"><input type="checkbox" data-th="${m}" ${L.hidden.includes(m) ? "" : "checked"}>${name[m]}</label><button class="btn ghost small" data-tu="${i}" type="button" aria-label="Wyżej: ${name[m]}" ${i ? "" : "disabled"}>↑</button><button class="btn ghost small" data-td="${i}" type="button" aria-label="Niżej: ${name[m]}" ${i < L.order.length - 1 ? "" : "disabled"}>↓</button></li>`).join("");
+  const qa = U.load("majestic-akcje-v1", ["collect", "note", "widget"]);
+  $("#qa-cfg").innerHTML = QAN.map(([k, n]) => `<button class="chip ${qa.includes(k) ? "on" : ""}" data-qk="${k}" type="button" aria-pressed="${qa.includes(k)}">${n}</button>`).join("");
+  $("#compact").checked = !!U.load("majestic-wyglad-v1", {}).compact;
+}
+$("#tabs-cfg").addEventListener("change", (e) => { const m = e.target.dataset.th; if (!m) return; const L = lay(); L.hidden = e.target.checked ? L.hidden.filter((x) => x !== m) : [...L.hidden, m]; U.save("majestic-zakladki-v1", L); pushLayout(); });
+$("#tabs-cfg").addEventListener("click", (e) => { const u = e.target.closest("[data-tu]"), d = e.target.closest("[data-td]"); if (!u && !d) return; const L = lay(), i = +(u ? u.dataset.tu : d.dataset.td), j = u ? i - 1 : i + 1; [L.order[i], L.order[j]] = [L.order[j], L.order[i]]; U.save("majestic-zakladki-v1", L); renderLayout(); pushLayout(); });
+$("#qa-cfg").addEventListener("click", (e) => { const b = e.target.closest("[data-qk]"); if (!b) return; let qa = U.load("majestic-akcje-v1", ["collect", "note", "widget"]); qa = qa.includes(b.dataset.qk) ? qa.filter((x) => x !== b.dataset.qk) : [...qa, b.dataset.qk]; U.save("majestic-akcje-v1", QAN.map((q) => q[0]).filter((k) => qa.includes(k))); renderLayout(); pushLayout(); });
+$("#compact").addEventListener("change", async (e) => {
+  U.save("majestic-wyglad-v1", { ...U.load("majestic-wyglad-v1", {}), compact: e.target.checked }); pushLayout();
+  if (Host.available) { try { const [x, y, w, h] = await Host.call("win_rect"); await Host.call("win_set", x, y, e.target.checked ? 820 : Math.max(w, 1280), h); } catch {} }
+});
+$("#wizard").addEventListener("click", () => window.parent.postMessage({ __wizard: true }, "*"));
+$("#bug").addEventListener("click", async () => {
+  const v = Host.available ? await Host.call("app_version") : "?", errs = U.load("majestic-bledy-v1", []);
+  const body = `**Co się stało?**\n(opisz, co klikałeś i czego się spodziewałeś)\n\n---\nWersja: ${v}\nSystem: ${navigator.userAgent.match(/Windows NT [\d.]+/)?.[0] || "Windows"}\nOstatnie błędy:\n${errs.length ? errs.map((x) => "- " + new Date(x.t).toLocaleString("pl-PL") + " " + x.p + ": " + x.m).join("\n") : "- brak"}`;
+  const url = "https://github.com/777Sami777/majestic-companion/issues/new?title=" + encodeURIComponent("Błąd: ") + "&body=" + encodeURIComponent(body).slice(0, 6000);
+  if (Host.available) Host.call("open_url", url); else window.open(url);
+});
+renderLayout();
 /* głos i tryb oszczędny (localStorage, jak wygląd) */
 const lookP = () => U.load("majestic-wyglad-v1", {});
 function renderVoiceEco() { $("#voice").checked = !!lookP().voice; document.querySelectorAll("[data-eco]").forEach((b) => b.classList.toggle("on", b.dataset.eco === (lookP().eco || "off"))); }

@@ -66,6 +66,7 @@ input:focus{outline:none;border-color:var(--accent)}
       <div class="row" style="margin-bottom:6px"><input id="c-job" placeholder="Co zbierasz" aria-label="Co zbierasz" style="flex:2"><input id="c-price" type="number" min="0" step="1" placeholder="$ / szt." aria-label="Cena za sztukę" style="flex:1"></div>
       <div class="row"><button class="b" id="c-minus" aria-label="Odejmij sztukę">−1</button><span class="big" id="c-count">0</span><button class="b" id="c-plus" aria-label="Dodaj sztukę">+1</button><button class="b" id="c-plus5" aria-label="Dodaj 5 sztuk">+5</button><button class="b pri" id="c-toggle">Start</button></div>
       <div class="muted" id="c-sum" style="margin-top:5px">Ctrl+Shift+Z start/stop · Ctrl+Shift+X +1</div>
+      <div class="tm" style="margin:8px 0 0"><span>Cel dnia <input id="c-goal" type="number" min="0" step="10" aria-label="Dzienny cel sztuk" style="width:62px;padding:2px 5px"></span><b id="c-streak"></b><div class="bar"><i id="c-goal-bar"></i></div></div>
     </section>
 
     <section class="box" id="goal-box" hidden><h3>Cel zakupowy <span class="muted" id="goal-pct"></span></h3>
@@ -121,6 +122,12 @@ function tick() {
   const min = c.on ? (now - c.start) / 60000 : 0;
   $("#c-time").textContent = c.on ? fmt(now - c.start) : "";
   $("#c-sum").textContent = c.on && c.price ? `${money((c.count || 0) * c.price)}${min >= 1 ? " · " + money(((c.count || 0) * c.price) / (min / 60)) + "/h" : ""}` : "Ctrl+Shift+Z start/stop · Ctrl+Shift+X +1";
+  // dzienny cel zbierania: dzisiejsze sztuki (zapisane + bieżące) i seria dni z wykonanym celem
+  const cg = load("majestic-zbieranie-cel-v1", { goal: 0, days: {} }), dk = new Date().toISOString().slice(0, 10), done = (cg.days[dk] || 0) + (c.on ? c.count || 0 : 0);
+  if (document.activeElement !== $("#c-goal")) $("#c-goal").value = cg.goal || "";
+  $("#c-goal-bar").style.width = cg.goal ? Math.min(100, (done / cg.goal) * 100) + "%" : "0%";
+  let streak = 0; if (cg.goal) { const d = new Date(); if ((cg.days[dk] || 0) + (c.on ? c.count || 0 : 0) < cg.goal) d.setDate(d.getDate() - 1); while ((cg.days[d.toISOString().slice(0, 10)] || 0) + (d.toISOString().slice(0, 10) === dk && c.on ? c.count || 0 : 0) >= cg.goal) { streak++; d.setDate(d.getDate() - 1); } }
+  $("#c-streak").textContent = cg.goal ? `${done}/${cg.goal}${streak ? " · seria " + streak + " d" : ""}` : "";
   // pierwszy niezrealizowany cel zakupowy
   const goal = load("majestic-cele-zakupy-v1", []).find((g) => !g.done) || load("majestic-cele-zakupy-v1", [])[0];
   $("#goal-box").hidden = !goal;
@@ -141,6 +148,7 @@ async function poll() {
 }
 const collect = (cmd, arg) => api() && api().collect(cmd, arg ?? null).then(() => setTimeout(tick, 150));
 $("#c-toggle").onclick = () => collect("toggle");
+$("#c-goal").onchange = (e) => { const g = load("majestic-zbieranie-cel-v1", { goal: 0, days: {} }); g.goal = Math.max(0, Math.round(+e.target.value || 0)); try { localStorage.setItem("majestic-zbieranie-cel-v1", JSON.stringify(g)); } catch {} tick(); };
 $("#c-plus").onclick = () => collect("add", 1);
 $("#c-plus5").onclick = () => collect("add", 5);
 $("#c-minus").onclick = () => collect("add", -1);

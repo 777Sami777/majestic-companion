@@ -223,6 +223,13 @@ function collect() {
   store.get("majestic-minutniki-v1", []).filter((t) => t.end > Date.now()).forEach((t) => out.push({ kind: "Minutnik", text: t.name, go: () => show("minutniki") }));
   return out;
 }
+/* kalkulator: tylko cyfry, + - * / ( ), przecinek/kropka i k/m (tysiące, miliony) */
+function calcExpr(s) {
+  if (!/^[\d\s.,+\-*/()kKmM$]+$/.test(s) || !/\d/.test(s) || !/[+\-*/kKmM]/.test(s.replace(/^-/, ""))) return null;
+  const e = s.replace(/\$|\s/g, "").replace(/,/g, ".").replace(/(\d+(?:\.\d+)?)[kK]/g, "($1*1e3)").replace(/(\d+(?:\.\d+)?)[mM]/g, "($1*1e6)");
+  if (!/^[\d.+\-*/()e]+$/.test(e)) return null;
+  try { const v = Function(`"use strict";return (${e})`)(); return Number.isFinite(v) ? v : null; } catch { return null; }
+}
 function copyText(t) {
   const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select();
   try { document.execCommand("copy"); } catch {}
@@ -232,6 +239,8 @@ function renderSearch() {
   const q = norm($("#s-q").value.trim());
   const all = collect();
   results = (q ? all.filter((r) => norm(r.text + " " + (r.sub || "")).includes(q)) : all.filter((r) => r.kind === "Zakładka")).slice(0, 40);
+  const calc = calcExpr($("#s-q").value.trim());
+  if (calc !== null) { const txt = Math.round(calc * 100) / 100, show = txt.toLocaleString("pl-PL"); results.unshift({ kind: "Wynik", text: "= " + show, sub: "Enter kopiuje do schowka", go: () => copyText(String(txt)) }); }
   cursor = Math.min(cursor, Math.max(0, results.length - 1));
   $("#s-res").innerHTML = results.map((r, i) => `<li role="option" aria-selected="${i === cursor}" class="${i === cursor ? "on" : ""}" data-i="${i}"><span class="s-kind">${esc(r.kind)}</span><b>${esc(r.text)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ""}</li>`).join("")
     || `<li class="s-none">Nic nie znaleziono dla „${esc($("#s-q").value)}”.</li>`;
@@ -364,6 +373,7 @@ window.__collect = (cmd, arg) => {
   if (cmd === "stop" && c.on) {
     const min = Math.max(1, Math.round((Date.now() - c.start) / 60000)), amt = Math.round(c.count * c.price);
     c.on = false;
+    if (c.count) { const g = store.get("majestic-zbieranie-cel-v1", { goal: 0, days: {} }), dk = new Date().toISOString().slice(0, 10); g.days[dk] = (g.days[dk] || 0) + c.count; store.set("majestic-zbieranie-cel-v1", g); }
     if (c.count) {
       const log = store.get("majestic-zarobki-v1", []);
       log.push({ id: Date.now().toString(36), job: c.job, amt, min, at: Date.now(), qty: c.count, price: c.price });
@@ -414,8 +424,88 @@ function showTour() {
   o.addEventListener("keydown", (e) => { if (e.key === "Escape") { o.remove(); store.set("majestic-samouczek-v1", true); } });
   document.body.appendChild(o); draw();
 }
-window.addEventListener("message", (e) => { if (e.data && e.data.__tour) showTour(); });
-if (!store.get("majestic-samouczek-v1", false)) setTimeout(showTour, 1500);
+window.addEventListener("message", (e) => { if (e.data && e.data.__tour) showTour(); if (e.data && e.data.__wizard) showWizard(); if (e.data && e.data.__layout) applyLayout(); });
+/* okno dialogowe w stylu aplikacji */
+function dialog(html, onClick) {
+  const o = document.createElement("div"); o.className = "mjd"; o.innerHTML = `<div role="dialog" aria-modal="true">${html}</div>`;
+  const close = () => o.remove();
+  o.addEventListener("click", (e) => onClick(e, close, o));
+  o.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  document.body.appendChild(o); o.querySelector("input,select,button")?.focus();
+  return o;
+}
+/* kreator pierwszego uruchomienia: serwer, nick, frakcja, praca → ustawienia, karta postaci, motyw */
+const FACTIONS = [["", "Cywil / brak", ""], ["lspd", "LSPD / LSCSD", "lspd"], ["ems", "EMS", "ems"], ["gov", "Rząd / FIB / SANG", "mdt"], ["ballas", "Ballas", "ballas"], ["vagos", "Vagos", "vagos"], ["families", "Families", "families"], ["bloods", "Bloods", "bloods"], ["news", "Weazel News", "weazel"]];
+async function showWizard() {
+  const a = api(); let st = {}; try { st = (await a?.get_settings()) || {}; } catch {}
+  const pc = store.get("majestic-postac-v1", {});
+  dialog(`<h2>Ustawmy aplikację pod Ciebie</h2><p style="margin:0 0 14px;color:var(--text-3)">30 sekund. Wszystko zmienisz później w Ustawieniach.</p>
+    <label>Serwer (np. PL1, PL2, DE1)<input name="srv" value="${esc(st.server || "PL1")}" maxlength="12"></label>
+    <label>Imię i nazwisko postaci<input name="name" value="${esc(pc.name || "")}" maxlength="50" placeholder="np. John Doe"></label>
+    <label>Frakcja<select name="fr">${FACTIONS.map(([v, n]) => `<option value="${v}">${n}</option>`).join("")}</select></label>
+    <label>Główna praca<input name="job" value="${esc(pc.job || "")}" maxlength="40" placeholder="np. Rybak, Mechanik, Zbieractwo"></label>
+    <div class="row"><button class="btn ghost small" data-w="x" type="button">Pomiń</button><button class="btn primary small" data-w="ok" type="button">Gotowe</button></div>`,
+  async (e, close, o) => {
+    const t = e.target.dataset.w; if (!t) return;
+    if (t === "ok") {
+      const v = (n) => o.querySelector(`[name=${n}]`).value.trim(), fr = FACTIONS.find((f) => f[0] === v("fr")) || FACTIONS[0];
+      try { if (v("srv")) await a?.set_settings({ server: v("srv").toUpperCase() }); } catch {}
+      store.set("majestic-postac-v1", { ...pc, name: v("name") || pc.name, faction: fr[0] ? fr[1] : pc.faction, job: v("job") || pc.job });
+      if (fr[2]) store.set("majestic-wyglad-v1", { ...store.get("majestic-wyglad-v1", {}), theme: fr[2] });
+      if (v("job")) { const c = store.get("majestic-zbieranie-v1", {}); if (!c.on) store.set("majestic-zbieranie-v1", { ...c, job: v("job") }); }
+    }
+    store.set("majestic-kreator-v1", true); close();
+    if (t === "ok") location.reload(); else if (!store.get("majestic-samouczek-v1", false)) showTour();
+  });
+}
+if (!store.get("majestic-kreator-v1", false) && !store.get("majestic-samouczek-v1", false)) setTimeout(showWizard, 1500);
+else if (!store.get("majestic-samouczek-v1", false)) setTimeout(showTour, 1500);
+/* „Co nowego” po aktualizacji */
+const CHANGES = {
+  "2.9.0": ["Kreator pierwszego uruchomienia (serwer, postać, frakcja, praca)", "Zgłoś błąd jednym kliknięciem (Ustawienia)", "Ukrywanie i kolejność zakładek", "Szybkie akcje na górnym pasku", "Kalkulator w wyszukiwarce: wpisz np. 1.2m-450k", "Notatki z kategoriami i przypinaniem", "Przypomnienia cykliczne (co tydzień, co X dni)", "Tryb kompaktowy okna", "Dzienny cel zbierania z serią dni w widżecie"],
+};
+setTimeout(async () => {  // po starcie: API pywebview pojawia się dopiero po chwili
+  const a = api(); let v = ""; try { v = await a?.app_version(); } catch {} if (!v) return;
+  const seen = store.get("majestic-wersja-v1", ""); store.set("majestic-wersja-v1", v);
+  if (!seen || seen === v || !CHANGES[v]) return;
+  dialog(`<h2>Co nowego w ${esc(v)}</h2><ul>${CHANGES[v].map((c) => `<li>${esc(c)}</li>`).join("")}</ul><div class="row"><button class="btn primary small" data-ok type="button">Super</button></div>`, (e, close) => { if (e.target.closest("[data-ok]")) close(); });
+}, 4000);
+/* zakładki: kolejność i ukrywanie z Ustawień */
+function applyLayout() {
+  const L = store.get("majestic-zakladki-v1", { order: [], hidden: [] }), box = $("#rail .tabs"), glider = box.querySelector(".tab-glider");
+  [...L.order, ...MODS].filter((m, i, a) => a.indexOf(m) === i).forEach((m) => { const b = box.querySelector(`[data-mod="${m}"]`); if (b) box.insertBefore(b, glider); });
+  box.querySelectorAll(".tab[data-mod]").forEach((b) => (b.hidden = L.hidden.includes(b.dataset.mod) && b.dataset.mod !== current));
+  document.documentElement.classList.toggle("compact", !!store.get("majestic-wyglad-v1", {}).compact);
+  renderQa();
+}
+/* szybkie akcje na górnym pasku */
+const QA = {
+  collect: ["Zbieranie", () => window.__collect("toggle"), () => store.get("majestic-zbieranie-v1", {}).on],
+  payday: ["PayDay", () => window.__hotTimer(1)],
+  note: ["Notatka", () => api()?.toggle_note()],
+  shot: ["Zrzut", () => api()?.quick_shot()],
+  widget: ["Widżet", () => api()?.open_widget()],
+  search: ["Szukaj", () => openSearch()],
+};
+function renderQa() {
+  const on = store.get("majestic-akcje-v1", ["collect", "note", "widget"]);
+  $("#qa").innerHTML = on.filter((k) => QA[k]).map((k) => `<button type="button" data-qa="${k}" class="${QA[k][2] && QA[k][2]() ? "on" : ""}">${QA[k][0]}</button>`).join("");
+}
+$("#qa").addEventListener("click", (e) => { const b = e.target.closest("[data-qa]"); if (b) { QA[b.dataset.qa][1](); setTimeout(renderQa, 300); } });
+setInterval(renderQa, 5000);
+applyLayout();
+/* przypomnienia cykliczne: co tydzień o godzinie albo co X dni; sprawdzane co minutę */
+function nextDue(r, from) {
+  const [h, m] = (r.time || "20:00").split(":").map(Number), d = new Date(from); d.setSeconds(0, 0); d.setHours(h, m);
+  if (r.kind === "week") { while (d.getDay() !== +r.dow || d.getTime() <= from) d.setDate(d.getDate() + 1); return d.getTime(); }
+  const step = Math.max(1, +r.every || 1) * 86400000; let t = (r.last || r.created || from); return t + step;
+}
+function cyclicCheck() {
+  const list = store.get("majestic-cykliczne-v1", []); let changed = false; const now = Date.now();
+  list.forEach((r) => { if (!r.due) { r.due = nextDue(r, now); changed = true; } if (r.due <= now) { api()?.notify("Przypomnienie: " + r.name, r.kind === "week" ? "Co tydzień" : `Co ${r.every} dni`); r.last = now; r.due = nextDue(r, now + 60000); changed = true; } });
+  if (changed) store.set("majestic-cykliczne-v1", list);
+}
+setTimeout(cyclicCheck, 20000); setInterval(cyclicCheck, 60000);
 setTimeout(() => { weeklyChecks(); checkUpdate(); }, 12000);
 setTimeout(dailyJobs, 90000); setInterval(dailyJobs, 3600000);
 setInterval(weeklyChecks, 1800000);

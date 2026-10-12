@@ -49,6 +49,17 @@
     </form>
   </section>
   <section class="rise" style="--d:2"><div class="timers" id="timers"></div></section>
+  <section class="panel rise" style="--d:3;margin-top:14px"><h2>Przypomnienia cykliczne</h2>
+    <form id="cyc-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+      <label class="field" style="flex:2;min-width:160px"><span>Co</span><input type="text" name="name" maxlength="40" placeholder="np. Zebranie ekipy" required></label>
+      <label class="field"><span>Jak często</span><select name="kind"><option value="week">Co tydzień</option><option value="days">Co X dni</option></select></label>
+      <label class="field" data-k="week"><span>Dzień</span><select name="dow"><option value="1">poniedziałek</option><option value="2">wtorek</option><option value="3">środa</option><option value="4">czwartek</option><option value="5">piątek</option><option value="6">sobota</option><option value="0">niedziela</option></select></label>
+      <label class="field" data-k="days" hidden><span>Co ile dni</span><input type="number" name="every" min="1" max="60" value="3"></label>
+      <label class="field"><span>Godzina</span><input type="time" name="time" value="20:00"></label>
+      <button class="btn primary">Dodaj</button>
+    </form>
+    <ul id="cyc" style="list-style:none;padding:0;margin:12px 0 0;display:grid;gap:6px"></ul>
+  </section>
   <p class="note">Minutniki liczą, gdy Majestic Companion jest włączony (może być zminimalizowany). Po ponownym uruchomieniu odliczanie wraca w to samo miejsce.</p>
 </div>
 <script src="../bridge.js"></script>
@@ -139,6 +150,20 @@ $("#timers").addEventListener("click", (e) => {
 });
 render();
 setInterval(tick, 1000);
+/* przypomnienia cykliczne: lista tutaj, sprawdzanie w głównym oknie co minutę */
+const CYK = "majestic-cykliczne-v1", DN = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
+function renderCyc() {
+  const list = U.load(CYK, []);
+  $("#cyc").innerHTML = list.map((r, i) => `<li style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 12px;border-radius:6px;background:var(--card)"><span><b>${U.esc(r.name)}</b> <small style="color:var(--text-3)">${r.kind === "week" ? "co " + DN[+r.dow] : "co " + r.every + " dni"}, ${r.time}${r.due ? " · najbliższe: " + new Date(r.due).toLocaleString("pl-PL", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</small></span><button class="btn ghost small" data-cdel="${i}" type="button" aria-label="Usuń przypomnienie">Usuń</button></li>`).join("") || `<li style="color:var(--text-3)">Brak. Dodaj np. zebranie ekipy co niedzielę o 20:00.</li>`;
+}
+$("#cyc-add").kind.addEventListener("change", (e) => document.querySelectorAll("#cyc-add [data-k]").forEach((l) => (l.hidden = l.dataset.k !== e.target.value)));
+$("#cyc-add").addEventListener("submit", (e) => {
+  e.preventDefault(); const f = e.target, list = U.load(CYK, []);
+  list.push({ id: U.uid(), name: f.name.value.trim(), kind: f.kind.value, dow: +f.dow.value, every: Math.max(1, +f.every.value || 1), time: f.time.value || "20:00", created: Date.now() });
+  U.save(CYK, list); f.name.value = ""; renderCyc(); U.toast("Dodano przypomnienie");
+});
+$("#cyc").addEventListener("click", (e) => { const b = e.target.closest("[data-cdel]"); if (!b) return; const list = U.load(CYK, []); list.splice(+b.dataset.cdel, 1); U.save(CYK, list); renderCyc(); });
+renderCyc(); setInterval(renderCyc, 60000);
 })();
 </script>
 </body>
