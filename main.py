@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.8.1"
+APP_VERSION = "2.8.2"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -829,12 +829,15 @@ robocopy "{new_dir}" "{app_dir}" /e /r:15 /w:1 /njh /njs /nfl /ndl /np >> %LOG%
 echo robocopy %errorlevel% >> %LOG%
 start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 """)
-        # ping zamiast timeout (bez konsoli timeout od razu się kończy); /r:15 /w:1: zablokowany plik nie wiesza robocopy na godziny
-        flags = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+        # ping zamiast timeout (bez konsoli timeout od razu się kończy); /r:15 /w:1: zablokowany plik nie wiesza robocopy na godziny.
+        # Start przez WMI: skrypt nie jest dzieckiem aplikacji, więc Windows nie zabija go razem z nią.
+        ps = ("$si=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0};"
+              "Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=$env:MJ_CMD;ProcessStartupInformation=$si}|Out-Null")
+        env = dict(os.environ, MJ_CMD=f'cmd /c "{bat}"')
         try:
-            subprocess.Popen(["cmd", "/c", bat], creationflags=flags | 0x01000000, close_fds=True)  # + CREATE_BREAKAWAY_FROM_JOB
-        except OSError:
-            subprocess.Popen(["cmd", "/c", bat], creationflags=flags, close_fds=True)
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps], env=env, creationflags=NO_WINDOW, timeout=30, check=True)
+        except Exception:
+            subprocess.Popen(["cmd", "/c", bat], creationflags=0x00000008 | 0x00000200 | 0x08000000, close_fds=True)
         threading.Timer(0.8, self.quit_app).start()
         threading.Timer(5, os._exit, (0,)).start()  # na pewno zamknij proces, inaczej skrypt czeka w nieskończoność
         return {"ok": True, "version": info["latest"]}
