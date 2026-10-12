@@ -46,7 +46,8 @@ function moveGlider() {
 }
 const NAMES = { dzis: "Dziś", mapa: "Mapa", kontakty: "Kontakty", sesje: "Statystyki gry", minutniki: "Minutniki", zarobki: "Zarobki", pojazdy: "Rynek", crafting: "Crafting", rp: "Postać i RP", ekipa: "Ekipa", ustawienia: "Ustawienia" };
 function setCallsign(mod) {
-  $("#cs-code").textContent = "MDT-" + String(MODS.indexOf(mod) + 1).padStart(2, "0");
+  const pr = store.get("majestic-postacie-v1", null), pn = pr && pr.list.length > 1 && (pr.list.find((x) => x.id === pr.cur) || {}).name;
+  $("#cs-code").textContent = pn ? pn.toUpperCase().slice(0, 14) : "MDT-" + String(MODS.indexOf(mod) + 1).padStart(2, "0");
   $("#cs-name").textContent = NAMES[mod] || mod;
 }
 const tickClock = () => { $("#clock").textContent = new Date().toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }); };

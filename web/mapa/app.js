@@ -927,7 +927,8 @@ function buildWikiLayer(slug, items) {
       const col = fam || it.oc || "#ffffff";
       L.rectangle([[y - h, x - h], [y + h, x + h]], { renderer: wikiRenderer, color: col, weight: 0.6, opacity: it.o ? 0.5 : 0.15,
         fillColor: col, fillOpacity: it.o ? 0.28 : 0.03 })
-        .bindTooltip(`${it.n ? label + " · " : ""}${it.o ? "Rodzina #" + it.o : "Wolne pole"}`, { className: "mk-tip", sticky: true }).addTo(g);
+        .bindTooltip(`${it.n ? label + " · " : ""}${it.o ? "Rodzina #" + it.o : "Wolne pole"}${state.terrNotes?.[x + "," + y] ? " · notatka: " + esc(state.terrNotes[x + "," + y].t.slice(0, 60)) : ""}`, { className: "mk-tip", sticky: true })
+        .on("click", (e) => terrPopup(x + "," + y, `${it.n ? label + " · " : ""}${it.o ? "Rodzina #" + it.o : "Wolne pole"}`, e.latlng)).addTo(g);
     } else if (it.t === "g") {
       L.polygon(it.c.map(([x, y]) => [y, x]), { renderer: wikiRenderer, color: (slug === "gatherer" && GATH_COL[it.n]) || it.col || cfg.color, weight: 1.5, fillOpacity: 0.18 })
         .bindTooltip(label, { className: "mk-tip", sticky: true })
@@ -1207,6 +1208,26 @@ $("#fav-route").addEventListener("click", () => {
 $("#wiki-layers").addEventListener("click", (e) => { if (e.target.closest("[data-gath-route]")) gatherRoute(); });
 
 /* ---------- przypomnienie o odnowieniu strefy zbierania ---------- */
+function rebuildCaptures() { if (wikiGroups.captures) { const on = map.hasLayer(wikiGroups.captures); map.removeLayer(wikiGroups.captures); delete wikiGroups.captures; if (on) setWikiVisible("captures", true); } }
+/* notatki do terytoriów: kto trzymał, kiedy wojna; termin wojny ustawia minutnik */
+function terrPopup(key, title, ll) {
+  const n = (state.terrNotes ||= {})[key] || { t: "", war: "" };
+  L.popup({ className: "cd-pop", offset: [0, -4] }).setLatLng(ll).setContent(
+    `<b>${title}</b><textarea id="tn-t" rows="3" maxlength="300" placeholder="Kto trzymał, co się działo…" aria-label="Notatka do terytorium" style="width:100%;margin:6px 0">${esc(n.t)}</textarea>
+     <label style="display:grid;gap:3px;font-size:12px">Wojna o to pole <input type="datetime-local" id="tn-war" value="${esc(n.war)}"></label>
+     <div class="cd-btns" style="margin-top:6px"><button data-tn="${esc(key)}">Zapisz</button>${n.t || n.war ? `<button data-tn-del="${esc(key)}">Usuń</button>` : ""}</div>`).openOn(map);
+}
+map.getContainer().addEventListener("click", (e) => {
+  const s = e.target.closest("[data-tn]"), d = e.target.closest("[data-tn-del]");
+  if (d) { delete state.terrNotes[d.dataset.tnDel]; save(); map.closePopup(); rebuildCaptures(); return toast("Usunięto notatkę"); }
+  if (!s) return;
+  const t = document.getElementById("tn-t").value.trim(), war = document.getElementById("tn-war").value;
+  state.terrNotes[s.dataset.tn] = { t, war }; save(); map.closePopup();
+  const min = war ? Math.round((new Date(war).getTime() - Date.now()) / 60000) - 15 : 0;
+  if (min > 0) window.parent.postMessage({ __toTimers: { name: "Wojna o terytorium za 15 min", min } }, "*");
+  rebuildCaptures();
+  toast(min > 0 ? "Zapisano. Przypomnę 15 minut przed wojną" : "Zapisano notatkę");
+});
 function cooldownPopup(it, ll) {
   const name = plName(it.n);
   L.popup({ className: "cd-pop", offset: [0, -4] }).setLatLng(ll).setContent(
@@ -1320,7 +1341,7 @@ function crewApply(ev) {
   if (ev.op === "hello") { crewPing(); const t = U.load(CREW_KEY, {}).team; if (t) crewSend({ op: "team", team: t }); return crewSnapshot(); }
   if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20), h: +ev.h || 0, net: +ev.net || 0 }; return renderCrewPeople(); }
   if (ev.op === "team" && ev.team) { const t = { name: String(ev.team.name || "").slice(0, 32), tag: String(ev.team.tag || "").slice(0, 5), color: /^#[0-9a-f]{6}$/i.test(ev.team.color) ? ev.team.color : "#2563eb" }; U.save(CREW_KEY, { ...U.load(CREW_KEY, {}), team: t }); return renderCrewTeam(); }
-  if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
+  if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); Host.call("push", "Ekipa: " + String(ev.by || "?").slice(0, 24), ev.t.slice(0, 300)).catch(() => {}); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
   if (ev.op === "pin" && Number.isFinite(ev.x) && Number.isFinite(ev.y)) return showCrewPin(ev);
   if (ev.op === "store" && Array.isArray(ev.items)) { window.parent.postMessage({ __toEkipa: { store: ev.items.slice(0, 200), by: ev.by } }, "*"); return; }
   if (ev.op === "timer" && ev.min > 0) { window.parent.postMessage({ __toTimers: { name: ev.name, min: ev.min, by: ev.by } }, "*"); return toast(`${ev.by || "Ekipa"} ustawił minutnik: ${ev.name}`); }

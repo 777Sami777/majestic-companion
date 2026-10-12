@@ -59,6 +59,13 @@
         <ul class="items" id="items"></ul>
         <label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--text-2);font-size:13.5px"><input type="checkbox" id="store-sync"> Magazyn na żywo z ekipą (przez mapę ekipy)</label>
       </section>
+      <section class="panel rise" style="--d:3"><h2>Rozliczenie akcji</h2>
+        <p class="hint">Kto ile wydał i ile dostał do ręki. Zysk dzielę po równo i liczę, kto komu ile oddaje.</p>
+        <form id="st-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input name="who" maxlength="24" placeholder="Kto" aria-label="Kto" required style="flex:2;min-width:100px"><input name="spent" type="number" min="0" step="1" placeholder="Wydał ($)" aria-label="Wydał" style="flex:1;min-width:80px"><input name="got" type="number" min="0" step="1" placeholder="Dostał ($)" aria-label="Dostał" style="flex:1;min-width:80px"><button class="btn">Dodaj</button></form>
+        <ul id="st-list" style="list-style:none;padding:0;margin:10px 0;display:grid;gap:4px"></ul>
+        <pre class="report" id="st-out"></pre>
+        <div style="display:flex;gap:8px"><button class="btn primary" id="st-copy" type="button">Kopiuj rozliczenie</button><button class="btn" id="st-clear" type="button">Wyczyść</button></div>
+      </section>
       <section class="panel rise" style="--d:3"><h2>Raport na Discorda</h2>
         <pre class="report" id="report"></pre>
         <button class="btn primary" id="copy-report">Kopiuj raport</button>
@@ -201,6 +208,29 @@ const d = new Date(Date.now() + 3600000); d.setMinutes(0, 0, 0);
 $("#ev-add").at.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 render();
 setInterval(renderEvents, 60000);
+/* rozliczenie: każdy trzyma (dostał − wydał), a powinien mieć równą część zysku */
+const STKEY = "majestic-rozliczenie-v1";
+let sett = U.load(STKEY, []);
+function settle() {
+  if (!sett.length) return "";
+  const net = sett.reduce((a, p) => a + p.got - p.spent, 0), fair = net / sett.length;
+  const bal = sett.map((p) => ({ who: p.who, b: p.got - p.spent - fair }));
+  const pay = bal.filter((x) => x.b > 0.5).sort((a, b) => b.b - a.b), recv = bal.filter((x) => x.b < -0.5).sort((a, b) => a.b - b.b), out = [];
+  while (pay.length && recv.length) {
+    const m = Math.min(pay[0].b, -recv[0].b); out.push(`${pay[0].who} → ${recv[0].who}: ${money(Math.round(m))}`);
+    pay[0].b -= m; recv[0].b += m; if (pay[0].b < 0.5) pay.shift(); if (recv[0].b > -0.5) recv.shift();
+  }
+  return `Zysk akcji: ${money(Math.round(net))} · na osobę: ${money(Math.round(fair))}\n` + (out.join("\n") || "Wszyscy są rozliczeni.");
+}
+function renderSett() {
+  $("#st-list").innerHTML = sett.map((p, i) => `<li style="display:flex;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:4px;background:var(--card)"><span><b>${esc(p.who)}</b> wydał ${money(p.spent)}, dostał ${money(p.got)}</span><button type="button" data-st="${i}" aria-label="Usuń" title="Usuń" style="color:var(--text-3)">×</button></li>`).join("");
+  $("#st-out").textContent = settle() || "Dodaj osoby z akcji.";
+}
+$("#st-add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.target; sett.push({ who: f.who.value.trim(), spent: Math.round(+f.spent.value) || 0, got: Math.round(+f.got.value) || 0 }); U.save(STKEY, sett); f.reset(); f.who.focus(); renderSett(); });
+$("#st-list").addEventListener("click", (e) => { const b = e.target.closest("[data-st]"); if (b) { sett.splice(+b.dataset.st, 1); U.save(STKEY, sett); renderSett(); } });
+$("#st-clear").addEventListener("click", () => { sett = []; U.save(STKEY, sett); renderSett(); });
+$("#st-copy").addEventListener("click", () => { const t = settle(); if (t) U.copy("**Rozliczenie akcji**\n" + t, "Skopiowano rozliczenie"); });
+renderSett();
 })();
 </script>
 </body>

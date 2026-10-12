@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.6.0"
+APP_VERSION = "2.7.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -380,7 +380,50 @@ class Api:
             width=340, height=560, x=sw - 360, y=16, frameless=True, on_top=True, resizable=False,
             background_color="#0c0e13", easy_drag=True)
         self._widget.events.closed += lambda: setattr(self, "_widget", None)
+        if not getattr(self, "_widget_loop", False):
+            self._widget_loop = True
+            threading.Thread(target=self._widget_watch, daemon=True).start()
         return True
+
+    def _widget_watch(self):
+        """Przezroczystość widżetu i chowanie, gdy gra nie jest na wierzchu (co pół sekundy, czyste WinAPI)."""
+        import ctypes
+        import time
+        from ctypes import wintypes
+        user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+        user32.FindWindowW.restype = wintypes.HWND
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetWindowLongW.restype = ctypes.c_long
+        shown, alpha, tick = True, None, 0
+        while getattr(self, "_widget", None):
+            time.sleep(0.5)
+            tick += 1
+            hwnd = user32.FindWindowW(None, "Majestic Widget")
+            if not hwnd:
+                continue
+            s = load_settings() if tick % 4 == 1 or alpha is None else s
+            a = max(30, min(100, int(s.get("widgetAlpha", 100) or 100)))
+            if a != alpha:
+                alpha = a
+                user32.SetWindowLongW(hwnd, -20, user32.GetWindowLongW(hwnd, -20) | 0x80000)  # WS_EX_LAYERED
+                user32.SetLayeredWindowAttributes(hwnd, 0, int(a * 2.55), 0x2)
+            want = True
+            if s.get("widgetAuto"):
+                fg = user32.GetForegroundWindow()
+                pid = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(fg, ctypes.byref(pid))
+                name = ""
+                h = kernel32.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+                if h:
+                    buf, size = ctypes.create_unicode_buffer(260), wintypes.DWORD(260)
+                    if kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+                        name = os.path.basename(buf.value).lower()
+                    kernel32.CloseHandle(h)
+                want = name in GAME_PROCESSES or pid.value == os.getpid() or fg == hwnd
+            if want != shown:
+                shown = want
+                user32.ShowWindow(hwnd, 4 if want else 0)  # SW_SHOWNOACTIVATE / SW_HIDE
+        self._widget_loop = False
 
     def widget_resize(self, w, h):
         if getattr(self, "_widget", None):
@@ -440,7 +483,37 @@ class Api:
         )
         env = dict(os.environ, MJ_T=str(title)[:120], MJ_B=str(text)[:240])  # tekst przez zmienne: bez wstrzykiwania w polecenie
         subprocess.Popen(["powershell", "-NoProfile", "-Command", ps], env=env, creationflags=NO_WINDOW)
+        self.push(title, text)
         return True
+
+    def push(self, title, text):
+        """Powiadomienie na telefon przez aplikację ntfy (temat z ustawień); bez tematu nic nie wysyła."""
+        topic = load_settings().get("ntfyTopic", "")
+        if not NTFY_RE.match(topic or ""):
+            return False
+
+        def send():
+            import urllib.request
+            try:
+                import urllib.parse  # tytuł w adresie: nagłówki HTTP nie przenoszą polskich znaków
+                req = urllib.request.Request("https://ntfy.sh/" + topic + "?title=" + urllib.parse.quote(str(title)[:120]),
+                                             data=str(text)[:500].encode("utf-8"), method="POST", headers={"Tags": "video_game"})
+                urllib.request.urlopen(req, timeout=10).close()
+            except Exception:
+                pass
+        threading.Thread(target=send, daemon=True).start()
+        return True
+
+    def save_file(self, name, content):
+        """Zapis dowolnego tekstu (np. CSV) przez okno „Zapisz jako”."""
+        name = re.sub(r"[^\w.\- ]", "_", str(name))[:80] or "plik.txt"
+        result = self._window.create_file_dialog(webview.SAVE_DIALOG, save_filename=name)
+        if not result:
+            return None
+        path = result if isinstance(result, str) else result[0]
+        with open(path, "w", encoding="utf-8-sig", newline="") as f:  # BOM: Excel poprawnie czyta polskie znaki
+            f.write(content)
+        return path
 
     # ---------- warstwy z Majestic Wiki ----------
     def wiki_layers(self):
@@ -820,7 +893,9 @@ start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 
 DEFAULT_SETTINGS = {"shotDirs": [], "overlayKey": "F10", "server": "PL1", "trayOnClose": True,
                     "webhook": "", "dcReport": True, "dcServer": True, "dcEvents": True, "compactOverlay": False,
-                    "hotPresets": [1, 2, 3], "autoPayday": False, "cloudDir": "", "streamer": False}
+                    "hotPresets": [1, 2, 3], "autoPayday": False, "cloudDir": "", "streamer": False,
+                    "ntfyTopic": "", "widgetAuto": False, "widgetAlpha": 100}
+NTFY_RE = re.compile(r"^[A-Za-z0-9_-]{12,64}$")
 WEBHOOK_RE = re.compile(r"^https://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+$")
 VK = {f"F{i}": 0x6F + i for i in range(1, 13)}
 

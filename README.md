@@ -15,11 +15,11 @@ Darmowa aplikacja na Windows dla graczy serwera **Majestic RP** (GTA V). Mapa ze
 | **Kontakty** | Numery, frakcje, długi, historia, powiązanie z miejscem na mapie |
 | **Statystyki** | Czas gry z logów launchera, liczba graczy na żywo, godziny szczytu, newsy Majestic |
 | **Minutniki** | Cooldowny i wypłaty z powiadomieniem Windows |
-| **Zarobki** | Zarobki, licznik sztuk × cena, wydatki, $/godz. dla każdej pracy, cele zakupowe, majątek z przypomnieniem o opłatach |
-| **Postać i RP** | Karta postaci (też jako obrazek), generator, gotowe /me i /do, słownik, dziennik, kalkulator mandatów i wyroków |
-| **Ekipa** | Grafik z przypomnieniami, magazyn, raport na Discorda, kod ekipy |
+| **Zarobki** | Zarobki, licznik sztuk × cena, wydatki, $/godz. dla każdej pracy, cele zakupowe, majątek z przypomnieniem o opłatach, najlepsza praca teraz, statystyki tygodni |
+| **Postać i RP** | Karta postaci (też jako obrazek), generator, gotowe /me i /do, słownik, dziennik, kalkulator mandatów i wyroków, radio i kody |
+| **Ekipa** | Grafik z przypomnieniami, magazyn, rozliczenie akcji (kto komu ile), raport na Discorda, kod ekipy |
 
-Do tego: wyszukiwarka w całej aplikacji (**Ctrl+Space**), szybka notatka w grze (**Ctrl+Shift+N**), nakładka nad grą (**F10**), widżet nad grą (PayDay, minutniki, licznik zbierania na **Ctrl+Shift+Z/X**, cel zakupowy, notatka), notatka po sesji, raport tygodnia jako obrazek, 12 motywów (w tym LSPD, EMS i gangi), samouczek, wersja angielska, ikona w zasobniku, start z Windowsem i paczka danych dla kolegi.
+Do tego: wyszukiwarka w całej aplikacji (**Ctrl+Space**), szybka notatka w grze (**Ctrl+Shift+N**), nakładka nad grą (**F10**), widżet nad grą (PayDay, minutniki, licznik zbierania na **Ctrl+Shift+Z/X**, cel zakupowy, notatka), notatka po sesji, raport tygodnia jako obrazek, powiadomienia na telefon (ntfy), profile kilku postaci, eksport CSV, lista zakupów do craftingu, notatki do terytoriów, 12 motywów (w tym LSPD, EMS i gangi), samouczek, wersja angielska, ikona w zasobniku, start z Windowsem i paczka danych dla kolegi.
 
 ![Mapa](docs/mapa.jpg)
 

@@ -67,6 +67,15 @@
     <div class="row"><div class="txt"><b>Wersja aplikacji</b><small id="ver">Sprawdzam…</small></div><button class="btn ghost small" id="upd">Sprawdź aktualizacje</button></div>
   </section>
 
+  <section class="panel rise" style="--d:2"><h2>Telefon i widżet</h2>
+    <div class="row"><div class="txt"><b>Powiadomienia na telefon</b><small id="ntfy-info">Zainstaluj darmową aplikację <b>ntfy</b> (Android / iPhone), włącz tę opcję i zasubskrybuj w niej pokazany temat. Minutniki, PayDay i czat ekipy przyjdą też na telefon.</small></div><label class="tog"><input type="checkbox" id="ntfy"><i></i></label></div>
+    <div class="row" id="ntfy-row" hidden><div class="txt"><b>Temat do wpisania w ntfy</b><small><code id="ntfy-topic" style="user-select:all"></code></small></div><div class="btns"><button class="btn ghost small" id="ntfy-copy" type="button">Kopiuj</button><button class="btn ghost small" id="ntfy-test" type="button">Wyślij test</button></div></div>
+    <div class="row"><div class="txt"><b>Widżet tylko w grze</b><small>Widżet chowa się, gdy przełączysz się z gry na inne okno, i wraca, gdy wrócisz do gry.</small></div><label class="tog"><input type="checkbox" id="w-auto"><i></i></label></div>
+    <div class="row"><div class="txt"><b>Przezroczystość widżetu</b><small id="w-alpha-v">100%</small></div><input type="range" id="w-alpha" min="30" max="100" step="5" aria-label="Przezroczystość widżetu" style="max-width:200px"></div>
+  </section>
+  <section class="panel rise" style="--d:2"><h2>Postacie</h2>
+    <div class="row"><div class="txt"><b>Profile postaci</b><small>Każda postać ma osobne zarobki, kartę, dziennik, cele i majątek. Mapa, kontakty i ustawienia są wspólne.</small></div><div class="btns"><select id="prof" aria-label="Aktywna postać" style="max-width:200px"></select><button class="btn ghost small" id="prof-add" type="button">+ Postać</button><button class="btn ghost small" id="prof-del" type="button">Usuń</button></div></div>
+  </section>
   <section class="panel rise" style="--d:2"><h2>Discord</h2>
     <div class="row"><div class="txt"><b>Webhook kanału ekipy</b><small>Na Discordzie: Ustawienia kanału → Integracje → Webhooki → Nowy webhook → Kopiuj URL. Wklej go tutaj.</small></div>
       <div class="btns"><input type="text" id="webhook" placeholder="https://discord.com/api/webhooks/…" aria-label="Adres webhooka Discorda" style="width:280px"><button class="btn ghost small" id="dc-test">Test</button></div></div>
@@ -83,6 +92,7 @@
   <section class="panel rise" style="--d:3"><h2>Dane</h2>
     <div class="row"><div class="txt"><b>Kopia zapasowa</b><small>Znaczniki, kontakty, minutniki, zarobki, własne teksty RP, ustawienia i zrzuty w jednym pliku ZIP.</small></div>
       <div class="btns"><button class="btn primary small" id="backup">Zapisz kopię</button><button class="btn ghost small" id="restore">Wczytaj kopię</button></div></div>
+    <div class="row"><div class="txt"><b>Eksport do Excela (CSV)</b><small>Plik otworzysz w Excelu albo Arkuszach Google.</small></div><div class="btns"><button class="btn ghost small" data-csv="zarobki" type="button">Zarobki</button><button class="btn ghost small" data-csv="majatek" type="button">Majątek</button><button class="btn ghost small" data-csv="sesje" type="button">Sesje</button></div></div>
     <div id="restore-pick" class="row" hidden style="display:block"></div>
     <div class="row"><div class="txt"><b>Kopia w chmurze (codziennie)</b><small id="cloud-info">Raz dziennie kopia zapisuje się w folderze OneDrive albo Google Drive, który synchronizuje się z chmurą. Trzymam 7 ostatnich kopii.</small></div>
       <div class="btns"><select id="cloud" aria-label="Folder kopii w chmurze" style="max-width:260px"></select><button class="btn ghost small" id="cloud-now" type="button">Zrób teraz</button></div></div>
@@ -138,6 +148,61 @@ $("#backup").addEventListener("click", async () => {
   try { const p = await Host.call("backup", JSON.stringify({ app: "majestic-companion", version: 1, data })); if (p) say("Zapisano kopię: " + p); }
   catch (e) { say("Nie udało się zapisać kopii: " + e.message); }
 });
+/* telefon (ntfy) i widżet */
+function loadPhone() {
+  if (!st) return;
+  $("#ntfy").checked = !!st.ntfyTopic; $("#ntfy-row").hidden = !st.ntfyTopic; $("#ntfy-topic").textContent = st.ntfyTopic || "";
+  $("#w-auto").checked = !!st.widgetAuto; $("#w-alpha").value = st.widgetAlpha || 100; $("#w-alpha-v").textContent = (st.widgetAlpha || 100) + "%";
+}
+$("#ntfy").addEventListener("change", async (e) => {
+  // losowy, długi temat: kto go nie zna, nie podejrzy powiadomień
+  const topic = e.target.checked ? "majestic-" + [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("") : "";
+  await set({ ntfyTopic: topic }); loadPhone();
+});
+$("#ntfy-copy").addEventListener("click", () => U.copy(st.ntfyTopic, "Skopiowano temat"));
+$("#ntfy-test").addEventListener("click", async () => { const ok = await Host.call("push", "Majestic Companion", "Test: powiadomienia na telefon działają."); say(ok ? "Wysłano test. Sprawdź telefon." : "Najpierw włącz powiadomienia."); });
+$("#w-auto").addEventListener("change", (e) => set({ widgetAuto: e.target.checked }));
+$("#w-alpha").addEventListener("input", (e) => ($("#w-alpha-v").textContent = e.target.value + "%"));
+$("#w-alpha").addEventListener("change", (e) => set({ widgetAlpha: +e.target.value }));
+/* eksport CSV: średnik i przecinek dziesiętny, jak lubi polski Excel */
+const csv = (rows) => rows.map((r) => r.map((v) => { const s = String(v ?? ""); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(";")).join("\r\n");
+const day = (t) => new Date(t).toLocaleString("pl-PL");
+document.querySelectorAll("[data-csv]").forEach((b) => b.addEventListener("click", async () => {
+  const k = b.dataset.csv; let rows;
+  if (k === "zarobki") rows = [["Data", "Praca / wydatek", "Kwota", "Minuty", "Sztuk", "Cena za sztukę"], ...U.load("majestic-zarobki-v1", []).sort((a, c) => a.at - c.at).map((l) => [day(l.at), l.job, l.amt, l.min || "", l.qty || "", l.price || ""])];
+  if (k === "majatek") rows = [["Nazwa", "Wartość", "Opłata", "Co ile dni", "Ostatnia opłata"], ...U.load("majestic-majatek-v1", []).map((x) => [x.name, x.value, x.fee, x.every, day(x.paid)])];
+  if (k === "sesje") { const s = (await Host.call("sessions")).sessions || []; rows = [["Start", "Serwer", "Minuty gry"], ...s.filter((x) => x.connected).map((x) => [day(x.joined), x.server || "", Math.round(x.played / 60)])]; }
+  const p = await Host.call("save_file", `majestic-${k}-${new Date().toISOString().slice(0, 10)}.csv`, csv(rows));
+  if (p) say("Zapisano: " + p);
+}));
+/* profile postaci: przełączenie odkłada dane jednej postaci i wczytuje drugiej */
+const PROF = "majestic-postacie-v1";
+const PKEYS = ["majestic-zarobki-v1", "majestic-postac-v1", "majestic-dziennik-v1", "majestic-cele-v1", "majestic-cele-zakupy-v1", "majestic-majatek-v1", "majestic-rp-v1", "majestic-zbieranie-v1", "majestic-nick-v1", "majestic-taryfikator-v1"];
+const profs = () => U.load(PROF, null) || { list: [{ id: "p1", name: "Postać 1" }], cur: "p1" };
+function renderProf() { const p = profs(); $("#prof").innerHTML = p.list.map((x) => `<option value="${x.id}" ${x.id === p.cur ? "selected" : ""}>${esc(x.name)}</option>`).join(""); $("#prof-del").disabled = p.list.length < 2; }
+function switchProf(to) {
+  const p = profs(); if (to === p.cur) return;
+  const snap = {}; PKEYS.forEach((k) => { const v = localStorage.getItem(k); if (v !== null) snap[k] = v; });
+  localStorage.setItem("majestic-p-" + p.cur, JSON.stringify(snap));
+  let next = {}; try { next = JSON.parse(localStorage.getItem("majestic-p-" + to)) || {}; } catch {}
+  PKEYS.forEach((k) => (next[k] !== undefined ? localStorage.setItem(k, next[k]) : localStorage.removeItem(k)));
+  p.cur = to; U.save(PROF, p); renderProf();
+  window.parent.postMessage({ __reloadAll: true }, "*");
+}
+$("#prof").addEventListener("change", (e) => switchProf(e.target.value));
+$("#prof-add").addEventListener("click", () => {
+  const box = $("#prof-add").parentElement; if (box.querySelector("form")) return;
+  const f = document.createElement("form"); f.className = "btns"; f.innerHTML = `<input name="n" maxlength="30" placeholder="Imię postaci" aria-label="Imię nowej postaci" required style="max-width:160px"><button class="btn primary small">Dodaj</button>`;
+  box.after(f); f.n.focus();
+  f.onsubmit = (e) => { e.preventDefault(); const p = profs(), id = "p" + Date.now().toString(36); p.list.push({ id, name: f.n.value.trim() }); U.save(PROF, p); f.remove(); switchProf(id); };
+});
+$("#prof-del").addEventListener("click", () => {
+  const p = profs(); if (p.list.length < 2) return;
+  const b = $("#prof-del"); if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Na pewno? Dane postaci znikną"; return setTimeout(() => { delete b.dataset.sure; b.textContent = "Usuń"; }, 4000); }
+  const gone = p.cur, to = p.list.find((x) => x.id !== gone).id;
+  switchProf(to); const q = profs(); q.list = q.list.filter((x) => x.id !== gone); U.save(PROF, q); localStorage.removeItem("majestic-p-" + gone); renderProf();
+});
+renderProf();
 $("#restore").addEventListener("click", async () => {
   try {
     const raw = await Host.call("restore"); if (!raw) return;
@@ -290,7 +355,7 @@ $("#pack-in").addEventListener("click", async () => {
 });
 $("#widget").addEventListener("click", () => Host.call("open_widget").then(() => U.toast("Widżet jest w prawym górnym rogu ekranu")).catch(() => U.toast("Widżet działa w aplikacji Majestic Companion")));
 renderLook();
-load().then(loadRun).then(loadDiscord).then(loadCloud);
+load().then(loadRun).then(loadDiscord).then(loadCloud).then(loadPhone);
 })();
 </script>
 </body>

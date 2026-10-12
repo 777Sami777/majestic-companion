@@ -123,6 +123,30 @@ let log = U.load(KEY, []);
 const DAY = 86400000;
 const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
+/* najlepsza praca „teraz”: Twoje wpisy z tego dnia tygodnia, ±2 h od obecnej godziny */
+function bestNow(work) {
+  const now = new Date(), wd = now.getDay(), hr = now.getHours(), by = {};
+  work.filter((l) => l.min && new Date(l.at).getDay() === wd && Math.abs(new Date(l.at).getHours() - hr) <= 2).forEach((l) => { const j = (by[l.job] ||= { amt: 0, min: 0 }); j.amt += l.amt; j.min += l.min; });
+  const best = Object.entries(by).map(([job, j]) => [job, j.amt / (j.min / 60)]).sort((a, b) => b[1] - a[1])[0];
+  return best ? `<p class="hint" style="margin:0 0 10px">Teraz (${now.toLocaleDateString("pl-PL", { weekday: "long" })}, ok. ${hr}:00) najlepiej szło Ci: <b>${esc(best[0])}</b> · ${money(best[1])}/h</p>` : "";
+}
+/* statystyki: $/h każdej pracy w 4 ostatnich tygodniach i najlepszy dzień tygodnia */
+function statsHtml(work) {
+  const w0 = dayStart(Date.now()) - ((new Date().getDay() + 6) % 7) * DAY, weeks = [3, 2, 1, 0].map((i) => w0 - i * 7 * DAY);
+  const jobs = [...new Set(work.filter((l) => l.min && l.at >= weeks[0]).map((l) => l.job))];
+  if (!jobs.length) return "";
+  const rate = (job, a) => { const xs = work.filter((l) => l.job === job && l.min && l.at >= a && l.at < a + 7 * DAY), m = xs.reduce((s, l) => s + l.min, 0); return m ? xs.reduce((s, l) => s + l.amt, 0) / (m / 60) : null; };
+  const max = Math.max(1, ...jobs.flatMap((j) => weeks.map((a) => rate(j, a) || 0)));
+  const DN = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"], byDay = Array(7).fill(0), days = Array(7).fill(null).map(() => new Set());
+  log.forEach((l) => { const d = new Date(l.at); byDay[d.getDay()] += l.amt; days[d.getDay()].add(d.toDateString()); });
+  const avg = byDay.map((v, i) => (days[i].size ? v / days[i].size : 0)), bd = avg.indexOf(Math.max(...avg));
+  return `<section class="panel rise" style="--d:8;margin-top:14px"><h2>Statystyki: $ / godz. w ostatnich 4 tygodniach</h2>
+    <p class="hint">Najlepszy dzień tygodnia: <b>${DN[bd]}</b> (średnio ${money(avg[bd])} na czysto).</p>
+    <div style="display:grid;grid-template-columns:minmax(110px,1fr) repeat(4,minmax(60px,1fr));gap:6px;align-items:end;font-size:12.5px">
+      <span></span>${weeks.map((a, i) => `<small style="color:var(--text-3);text-align:center">${i === 3 ? "ten tydz." : new Date(a).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</small>`).join("")}
+      ${jobs.map((j) => `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(j)}</span>${weeks.map((a) => { const r = rate(j, a); return `<div title="${r ? money(r) + "/h" : "brak"}" style="display:grid;gap:2px;justify-items:center"><i style="display:block;width:70%;height:${r ? Math.max(4, (r / max) * 46) : 2}px;background:${r ? "var(--accent)" : "var(--line-2)"};border-radius:2px"></i><small style="color:var(--text-3)">${r ? (r >= 1000 ? Math.round(r / 1000) + "k" : Math.round(r)) : "—"}</small></div>`; }).join("")}`).join("")}
+    </div></section>`;
+}
 function render() {
   $("#jobs").innerHTML = [...new Set([...log.map((l) => l.job), ...JOBS])].map((j) => `<option value="${esc(j)}">`).join("");
   if (!log.length) { $("#out").innerHTML = `<div class="panel empty rise" style="--d:2"><b>Brak wpisów</b>Dodaj pierwszy zarobek, np. „Górnik, 12000, 45 min”.</div>`; return; }
@@ -143,11 +167,12 @@ function render() {
     </div>
     ${chartHtml()}
     <div class="two">
-      <section class="panel rise" style="--d:6"><h2>Najbardziej opłacalne ($ / godz.)</h2>
+      <section class="panel rise" style="--d:6"><h2>Najbardziej opłacalne ($ / godz.)</h2>${bestNow(work)}
         <div class="jobs">${jobs.map((j, i) => `<div class="job"><span class="name">${esc(j.job)}</span><span class="bar"><i style="width:${(j.rate / maxRate) * 100}%;--i:${i}"></i></span><span class="rate">${money(j.rate)}</span><span class="tot">${money(j.amt)} · ${j.n}×</span></div>`).join("") || `<p class="empty">Podawaj czas pracy, żeby policzyć stawkę.</p>`}</div></section>
       <section class="panel rise" style="--d:7"><h2>Ostatnie wpisy</h2>
         <ul class="log">${log.slice().sort((a, b) => b.at - a.at).slice(0, 40).map((l, i) => `<li style="--i:${Math.min(i, 15)}"><time>${new Date(l.at).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}</time><span>${esc(l.job)}${l.qty ? ` <small class="qty">${l.qty} szt. × ${money(l.price)}</small>` : ""}</span><span class="amt ${l.amt < 0 ? "neg" : ""}">${money(l.amt)}</span><span class="min">${l.min ? l.min + " min" : "—"}</span><button data-del="${l.id}" title="Usuń wpis"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join("")}</ul></section>
-    </div>`;
+    </div>
+    ${statsHtml(work)}`;
 }
 /* wykres 14 dni: słupek zarobku w górę, wydatków w dół */
 function chartHtml() {

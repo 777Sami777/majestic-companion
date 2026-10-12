@@ -54,6 +54,11 @@
     <ul class="list" id="list"></ul>
     <aside class="panel detail" id="detail"><div class="empty"><b>Wybierz przepis</b>Kliknij przepis z listy.</div></aside>
   </div>
+  <section class="panel rise" style="--d:3;margin-top:14px" id="shop-box" hidden><h2>Lista zakupów <span id="shop-cost"></span></h2>
+    <p class="src" id="shop-for" style="margin:0 0 8px"></p>
+    <ul class="ing" id="shop"></ul>
+    <div style="display:flex;gap:8px"><button class="btn small" id="shop-copy" type="button">Kopiuj listę</button><button class="btn small" id="shop-clear" type="button">Wyczyść</button></div>
+  </section>
   <p class="src" id="src"></p>
 </div>
 <script src="../bridge.js"></script>
@@ -106,15 +111,40 @@ function renderDetail() {
         <li><span>Sprzedaż porcji</span><span class="pr"><input type="number" min="0" data-price="${esc("danie:" + x.n)}" value="${prices["danie:" + x.n] || ""}" placeholder="$/porcja" aria-label="Cena porcji"></span></li></ul>
       ${(() => { const c = recipeCost(x), p = recipeProfit(x); return c === null ? `<p class="src">Wpisz ceny składników, a policzę koszt i zysk.</p>` : `<ul class="ing"><li><span>Koszt składników</span><b>${U.money(c * batches)}</b></li>${p !== null ? `<li><span>Zysk (${batches * x.out} porcji)</span><b class="${p >= 0 ? "pos" : "neg"}">${U.money(p * batches)}</b></li><li><span>Zysk na godzinę gotowania</span><b>${U.money(p / (x.min / 60))}</b></li>` : ""}</ul>`; })()}
       ${x.how.length ? `<h2>Jak</h2><div class="how">${x.how.map((h) => `<span>${HOW[h] || esc(h)}</span>`).join("")}</div>` : ""}
-      <p class="src">Łączny czas: ${hrs(x.min * batches)}, wyjdzie ${batches * x.out} porcji.</p>`;
+      <p class="src">Łączny czas: ${hrs(x.min * batches)}, wyjdzie ${batches * x.out} porcji.</p>
+      <button class="btn small" data-shop type="button">+ Do listy zakupów</button>`;
   } else {
     const [col, name] = MT[x.mt] || ["#94a3b8", x.mt || ""];
     $("#detail").innerHTML = `<img src="${IMG(x.id)}" alt=""><h3>${esc(x.n)}</h3><p class="meta">${esc(x.d)}</p>
       <label class="qty">Ile sztuk? <input type="number" id="qty" min="1" value="${qty}"></label>
       <ul class="ing"><li><span><i class="mt" style="background:${col}"></i>Materiały ${esc(name)}</span><b>${x.mat * qty}</b></li><li><span>Waga razem</span><b>${(x.w * qty / 1000).toFixed(2).replace(".", ",")} kg</b></li></ul>
-      <h2>Frakcje</h2><div class="fr">${x.fr.map((f) => `<span>${FR[f] || esc(f)}</span>`).join("")}</div>`;
+      <h2>Frakcje</h2><div class="fr">${x.fr.map((f) => `<span>${FR[f] || esc(f)}</span>`).join("")}</div>
+      <button class="btn small" data-shop type="button" style="margin-top:12px">+ Do listy zakupów</button>`;
   }
 }
+/* lista zakupów: składniki kilku przepisów zsumowane, do odhaczania */
+const SKEY = "majestic-zakupy-v1";
+let shop = U.load(SKEY, { items: [], done: [] });
+function renderShop() {
+  $("#shop-box").hidden = !shop.items.length; if (!shop.items.length) return;
+  const sum = {}; shop.items.forEach((it) => it.ing.forEach(([n, a]) => (sum[n] = (sum[n] || 0) + a)));
+  const rows = Object.entries(sum).sort((a, b) => a[0].localeCompare(b[0], "pl"));
+  const cost = rows.every(([n]) => prices[n] > 0) ? rows.reduce((a, [n, c]) => a + prices[n] * c, 0) : null;
+  $("#shop-cost").textContent = cost !== null ? "koszt " + U.money(cost) : "";
+  $("#shop-for").textContent = "Na: " + shop.items.map((x) => `${x.n} ×${x.q}`).join(", ");
+  $("#shop").innerHTML = rows.map(([n, a]) => `<li style="${shop.done.includes(n) ? "opacity:.5;text-decoration:line-through" : ""}"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-sd="${esc(n)}" ${shop.done.includes(n) ? "checked" : ""}>${esc(n)}</label><b>${a}×</b></li>`).join("");
+  return rows;
+}
+$("#detail").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-shop]")) return;
+  const x = (tab === "kitchen" ? data.recipes : data.crafts).find((r) => r.id === sel); if (!x) return;
+  const ing = tab === "kitchen" ? x.ing.map(([n, a]) => [n, a * Math.ceil(qty / Math.max(1, x.out))]) : [["Materiały " + ((MT[x.mt] || [])[1] || x.mt || ""), x.mat * qty]];
+  shop.items.push({ n: x.n, q: qty, ing }); U.save(SKEY, shop); renderShop(); U.toast("Dodano do listy zakupów");
+});
+$("#shop").addEventListener("change", (e) => { const n = e.target.dataset.sd; if (n === undefined) return; shop.done = e.target.checked ? [...shop.done, n] : shop.done.filter((x) => x !== n); U.save(SKEY, shop); renderShop(); });
+$("#shop-clear").addEventListener("click", () => { shop = { items: [], done: [] }; U.save(SKEY, shop); renderShop(); });
+$("#shop-copy").addEventListener("click", () => { const rows = renderShop() || []; U.copy("Lista zakupów:\n" + rows.map(([n, a]) => `- ${n}: ${a}`).join("\n"), "Skopiowano listę"); });
+renderShop();
 $("#list").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) { sel = +b.dataset.id; qty = 1; render(); } });
 $("#detail").addEventListener("change", (e) => { const k = e.target.dataset.price; if (k === undefined) return; prices[k] = Math.max(0, +e.target.value || 0); U.save(PKEY, prices); render(); });
 $("#detail").addEventListener("input", (e) => { if (e.target.id === "qty") { qty = Math.max(1, Math.min(9999, Math.round(+e.target.value || 1))); const pos = e.target.selectionStart; renderDetail(); const n = $("#qty"); n.focus(); try { n.setSelectionRange(pos, pos); } catch {} } });
