@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.10.0"
+APP_VERSION = "2.10.1"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -1081,8 +1081,21 @@ def start_tray(api):
     threading.Thread(target=api._tray.run, daemon=True).start()
 
 
+def _sync_installed_version():
+    """Po aktualizacji w aplikacji: wersja w „Aplikacje i funkcje” (i w instalatorze) zgadza się z faktyczną."""
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall\MajesticCompanion", 0,
+                            winreg.KEY_READ | winreg.KEY_SET_VALUE) as k:
+            if os.path.normcase(winreg.QueryValueEx(k, "InstallLocation")[0]) == os.path.normcase(os.path.dirname(sys.executable)):
+                winreg.SetValueEx(k, "DisplayVersion", 0, winreg.REG_SZ, APP_VERSION)
+    except OSError:
+        pass
+
+
 def main():
     os.makedirs(SHOTS_DIR, exist_ok=True)
+    _sync_installed_version()
     api = Api()
     api._window = webview.create_window(
         APP_NAME,
