@@ -470,6 +470,7 @@ if (!store.get("majestic-kreator-v1", false) && !store.get("majestic-samouczek-v
 else if (!store.get("majestic-samouczek-v1", false)) setTimeout(showTour, 1500);
 /* „Co nowego” po aktualizacji */
 const CHANGES = {
+  "2.12.1": ["Poprawka: cofnięcie aktualizacji nie usuwa plików instalatora"],
   "2.12.0": ["Cofnij aktualizację jednym kliknięciem (Ustawienia → Uruchamianie)", "Odległość i czas dojazdu od „Tu jestem” na karcie miejsca", "Limit gry dziennie z ostrzeżeniem", "Archiwum miesiąca w Ekipie", "Własny motyw: kolor akcentu, tło, obrazek", "Zadania na dziś w widżecie", "Import zarobków z Discorda / CSV", "Wydania budowane i testowane automatycznie na GitHubie"],
   "2.11.0": ["Ustawienia w zakładkach (Wygląd / Gra / Ekipa / Dane) z wyszukiwarką", "Skarbiec organizacji w Ekipie, widoczny dla całej ekipy", "Wspólna lista zakupów z informacją, kto co kupił", "Notatki głosowe przy znacznikach na mapie", "Wykres majątku z 12 tygodni (Zarobki)", "Newsy Majestic w kalendarzu", "Przewodnik nowego gracza z przyciskiem „Pokaż”", "Wersja angielska: prawie wszystkie napisy", "Poprawka: zmiany od ekipy nie giną, gdy zakładka Ekipa jest zamknięta"],
   "2.10.1": ["Nowy instalator w stylu aplikacji: wybór folderu, skróty, start z Windowsem", "Instalacja działa także, gdy aplikacja jest włączona"],

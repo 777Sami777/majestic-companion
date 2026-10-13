@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.12.0"
+APP_VERSION = "2.12.1"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -849,6 +849,7 @@ class Api:
         app_dir = os.path.dirname(sys.executable)
         prev = app_dir.rstrip("\\/") + "_poprzednia"
         bat = os.path.join(tmp, "aktualizuj.bat")
+        # kopia obecnej wersji obok; przy cofaniu tylko nadpisujemy (/e), żeby nie skasować odinstaluj.bat i plików instalatora
         keep = (f'robocopy "{app_dir}" "{prev}" /mir /r:5 /w:1 /njh /njs /nfl /ndl /np >> %LOG%\n'
                 f'echo {APP_VERSION}> "{os.path.join(prev, "wersja.txt")}"\n') if backup else ""
         with open(bat, "w", encoding="mbcs") as f:
@@ -864,7 +865,7 @@ ping -n 2 127.0.0.1 >nul
 goto wait
 :copy
 {keep}echo kopiuje >> %LOG%
-robocopy "{src}" "{app_dir}" {"/e" if backup else "/mir /xf wersja.txt"} /r:15 /w:1 /njh /njs /nfl /ndl /np >> %LOG%
+robocopy "{src}" "{app_dir}" /e /xf wersja.txt /r:15 /w:1 /njh /njs /nfl /ndl /np >> %LOG%
 echo robocopy %errorlevel% >> %LOG%
 start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 """)
