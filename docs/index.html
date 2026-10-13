@@ -56,6 +56,7 @@ h2{margin:0 0 8px;font:700 32px var(--din);letter-spacing:.02em}
 .mod p{margin:0;color:var(--text-2);font-size:15px}
 .gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .gallery figure{margin:0}
+.gallery.inst img{aspect-ratio:624/481}
 .gallery img{display:block;width:100%;height:auto;aspect-ratio:1464/881;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
 .gallery figcaption{margin-top:8px;color:var(--text-3);font-size:14px}
 .steps{counter-reset:s;list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
@@ -79,7 +80,7 @@ footer{padding:32px 16px 48px;text-align:center;color:var(--text-3);font-size:14
 <main>
   <div class="hero">
     <div>
-      <span class="status"><i></i>10-8 · Wersja 2.10.1</span>
+      <span class="status"><i></i>10-8 · Wersja 2.11</span>
       <p class="live" id="live" hidden></p>
       <h1>Twój terminal na <span>Majestic RP</span></h1>
       <p class="lead">Mapa z wiki, zarobki, minutniki, crafting, postać, ekipa na żywo i widżet nad grą w jednym oknie. Powiadomienia także na telefon. Za darmo, na Windows.</p>
@@ -111,18 +112,17 @@ footer{padding:32px 16px 48px;text-align:center;color:var(--text-3);font-size:14
   </section>
 
   <section id="nowosci">
-    <h2>Nowe w wersji 2.10</h2>
-    <p class="sub">Wcześniej: kreator, „Co nowego”, szybkie akcje, kalkulator w wyszukiwarce, przypomnienia cykliczne (2.9); głos, galeria zrzutów, osiągnięcia, synchronizacja z drugim komputerem (2.8).</p>
+    <h2>Nowe w wersji 2.11</h2>
+    <p class="sub">Wcześniej (2.10): własne skróty, planer sesji, szukanie w wiki, warstwy na mapie, historia cen, porównanie z ekipą, QR, PDF postaci i nowy instalator.</p>
     <div class="mods">
-      <div class="mod"><span class="code">Setup</span><h3>Nowy instalator</h3><p>Instalator w stylu aplikacji: wybierasz folder, skróty i start z Windowsem, widzisz postęp. Działa też przy włączonej aplikacji.</p></div>
-      <div class="mod"><span class="code">Ctrl+Shift</span><h3>Własne skróty</h3><p>Wybierasz litery dla notatki, zbierania, +1 i zrzutu, gdy domyślne gryzą się z grą.</p></div>
-      <div class="mod"><span class="code">Plan</span><h3>Planer sesji</h3><p>„Kraby 60 min → skrytka 30 min → akcja ekipy”: aplikacja prowadzi Cię krok po kroku, a widżet pokazuje bieżący krok.</p></div>
-      <div class="mod"><span class="code">Ctrl+Space</span><h3>Szukaj w wiki</h3><p>Pojazdy, nieruchomości i przepisy w jednej wyszukiwarce. Dom pokazuje się od razu na mapie.</p></div>
-      <div class="mod"><span class="code">Mapa</span><h3>Własne warstwy</h3><p>Trasy i strefy w warstwach (np. „trasy ucieczki”), każdą ukryjesz jednym kliknięciem.</p></div>
-      <div class="mod"><span class="code">Rynek</span><h3>Historia cen</h3><p>Przy cenie auta strzałka ▲▼, gdy wiki zmieni cenę.</p></div>
-      <div class="mod"><span class="code">Ekipa</span><h3>Porównanie i QR</h3><p>$/h i najlepsza praca każdego w rankingu, ranking na Discorda jednym kliknięciem, kod ekipy jako QR.</p></div>
-      <div class="mod"><span class="code">PDF</span><h3>Historia postaci</h3><p>Karta, dziennik i zrzuty w jednym dokumencie do wydruku albo PDF.</p></div>
-      <div class="mod"><span class="code">Motyw</span><h3>Według pory dnia</h3><p>Jasny w dzień, Twój ciemny motyw wieczorem.</p></div>
+      <div class="mod"><span class="code">Ekipa</span><h3>Skarbiec organizacji</h3><p>Wspólna kasa z historią wpłat i wypłat, widoczna dla całej ekipy na żywo.</p></div>
+      <div class="mod"><span class="code">Crafting</span><h3>Wspólna lista zakupów</h3><p>Lista składników synchronizuje się z ekipą i pokazuje, kto co już kupił.</p></div>
+      <div class="mod"><span class="code">Mapa</span><h3>Notatki głosowe</h3><p>Przy znaczniku nagrywasz kilka sekund z mikrofonu i odsłuchujesz później.</p></div>
+      <div class="mod"><span class="code">Zarobki</span><h3>Majątek w czasie</h3><p>Wykres z 12 tygodni: zarobki na czysto plus wartość aut i domów.</p></div>
+      <div class="mod"><span class="code">Dziś</span><h3>Newsy w kalendarzu</h3><p>Aktualizacje i eventy Majestic widać w dniu publikacji.</p></div>
+      <div class="mod"><span class="code">Start</span><h3>Ścieżka nowego gracza</h3><p>Pierwsze kroki na Majestic z przyciskiem „Pokaż”: od razu na mapie albo w zakładce.</p></div>
+      <div class="mod"><span class="code">Ustawienia</span><h3>Zakładki i szukanie</h3><p>Wygląd, Gra, Ekipa, Dane i wyszukiwarka ustawień.</p></div>
+      <div class="mod"><span class="code">EN</span><h3>Wersja angielska</h3><p>Prawie wszystkie napisy interfejsu po angielsku.</p></div>
     </div>
   </section>
 
@@ -138,12 +138,17 @@ footer{padding:32px 16px 48px;text-align:center;color:var(--text-3);font-size:14
 
   <section id="instalacja">
     <h2>Instalacja w minutę</h2>
-    <p class="sub">Bez instalatora i bez konta.</p>
+    <p class="sub">Bez konta i bez uprawnień administratora. Twoje dane zostają przy aktualizacji.</p>
     <ol class="steps">
-      <li>Pobierz <b><a href="https://github.com/777Sami777/majestic-companion/releases/latest/download/MajesticCompanionSetup.exe">MajesticCompanionSetup.exe</a></b>.</li>
-      <li>Uruchom instalator i kliknij „Tak”. Windows może zapytać o zgodę, bo program nie ma płatnego podpisu: wybierz „Więcej informacji” → „Uruchom mimo to”.</li>
-      <li>Aplikacja startuje sama, a skrót masz na pulpicie. Nowe wersje instalujesz jednym kliknięciem w Ustawieniach.</li>
+      <li>Pobierz <b><a href="https://github.com/777Sami777/majestic-companion/releases/latest/download/MajesticCompanionSetup.exe">MajesticCompanionSetup.exe</a></b>. Windows może zapytać o zgodę, bo program nie ma płatnego podpisu: wybierz „Więcej informacji” → „Uruchom mimo to”.</li>
+      <li>W instalatorze kliknij „Dalej”, wybierz folder i skróty (pulpit, menu Start, start z Windowsem), potem „Zainstaluj”.</li>
+      <li>„Zakończ” uruchamia aplikację, a krótki kreator ustawia ją pod Twoją postać. Nowe wersje instalujesz jednym kliknięciem w aplikacji.</li>
     </ol>
+    <div class="gallery inst" style="margin-top:14px">
+      <figure><img src="instalator-1.jpg" alt="Instalator: ekran powitalny z wersją aplikacji" width="624" height="481" loading="lazy"><figcaption>1. Powitanie i wersja</figcaption></figure>
+      <figure><img src="instalator-2.jpg" alt="Instalator: wybór folderu, skrótów i startu z Windowsem" width="624" height="481" loading="lazy"><figcaption>2. Folder i opcje</figcaption></figure>
+      <figure><img src="instalator-3.jpg" alt="Instalator: zakończona instalacja z opcją Uruchom teraz" width="624" height="481" loading="lazy"><figcaption>3. Gotowe</figcaption></figure>
+    </div>
   </section>
 
   <section>

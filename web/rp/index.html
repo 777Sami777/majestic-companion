@@ -106,12 +106,12 @@
     <div id="codes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     <h3 style="margin:14px 0 6px;font-size:13px;color:var(--text-3)">Kanały</h3>
     <ul id="chans" style="list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px"></ul>
-    <form id="chan-add" autocomplete="off" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input name="n" maxlength="24" placeholder="Np. LSPD główny" aria-label="Nazwa kanału" required style="flex:2;min-width:120px"><input name="f" maxlength="10" placeholder="Częstotliwość" aria-label="Częstotliwość" required style="flex:1;min-width:90px"><button class="btn ghost small">Dodaj kanał</button></form>
+    <form id="chan-add" autocomplete="off" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input type="text" name="n" maxlength="24" placeholder="Np. LSPD główny" aria-label="Nazwa kanału" required style="flex:2;min-width:120px"><input type="text" name="f" maxlength="10" placeholder="Częstotliwość" aria-label="Częstotliwość" required style="flex:1;min-width:90px"><button class="btn ghost small">Dodaj kanał</button></form>
   </section>
   <section class="panel rise" style="--d:6"><h2>Kalkulator mandatów i wyroków <span id="fine-sum"></span></h2>
     <p class="hint-s" style="margin:0 0 8px">Przykładowy taryfikator: popraw kwoty pod swój serwer, zapisze się. Kliknij wykroczenie, żeby dodać, prawym przyciskiem odejmij.</p>
     <ul id="fines" style="list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px"></ul>
-    <form id="fine-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input name="n" placeholder="Nowe wykroczenie" aria-label="Nazwa wykroczenia" required style="flex:2;min-width:150px"><input name="fine" type="number" min="0" step="1" placeholder="Grzywna ($)" aria-label="Grzywna" style="flex:1;min-width:90px"><input name="jail" type="number" min="0" step="1" placeholder="Odsiadka (min)" aria-label="Odsiadka w minutach" style="flex:1;min-width:90px"><button class="btn ghost small">Dodaj do listy</button></form>
+    <form id="fine-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input type="text" name="n" placeholder="Nowe wykroczenie" aria-label="Nazwa wykroczenia" required style="flex:2;min-width:150px"><input name="fine" type="number" min="0" step="1" placeholder="Grzywna ($)" aria-label="Grzywna" style="flex:1;min-width:90px"><input name="jail" type="number" min="0" step="1" placeholder="Odsiadka (min)" aria-label="Odsiadka w minutach" style="flex:1;min-width:90px"><button class="btn ghost small">Dodaj do listy</button></form>
     <div class="btns-row"><button class="btn primary small" id="fine-copy" type="button">Kopiuj wyrok</button><button class="btn ghost small" id="fine-clear" type="button">Wyczyść</button></div>
   </section>
   <section class="panel rise" style="--d:6"><h2>Słownik pojęć RP <span id="dict-count"></span></h2>
@@ -368,15 +368,15 @@ renderDict();
 /* ---------- przewodnik dla początkujących ---------- */
 const GKEY = "majestic-przewodnik-v1";
 const GUIDE = [
-  ["Zrób dowód osobisty w urzędzie (GOV)", "Bez dokumentów nie weźmiesz większości prac."],
-  ["Zdobądź prawo jazdy kategorii B", "Szkoła jazdy jest zaznaczona na mapie (Służby państwowe)."],
-  ["Załóż konto w banku i zrób kartę", "Pieniądze w banku nie przepadną przy śmierci."],
-  ["Kup telefon i zapisz pierwsze kontakty", "Zapisz je też w zakładce Kontakty, z frakcją i notatką."],
-  ["Weź pierwszą pracę: górnik, drwal, rolnik albo rybak", "Wpisuj zarobki w zakładce Zarobki, żeby zobaczyć stawkę na godzinę."],
-  ["Spróbuj zbieractwa: kraby, glony, jagody", "Mapa → Zbieractwo → Wyznacz trasę przez te strefy."],
-  ["Odbierz pierwszy PayDay", "Włącz automatyczny PayDay w Ustawieniach."],
-  ["Kup pierwsze auto", "Rynek → zaznacz auto → planer pokaże, ile dni grania brakuje."],
-  ["Wynajmij albo kup mieszkanie", "Rynek → Nieruchomości, przycisk „Na mapie”."],
+  ["Zrób dowód osobisty w urzędzie (GOV)", "Bez dokumentów nie weźmiesz większości prac.", ["mapa", "urząd"]],
+  ["Zdobądź prawo jazdy kategorii B", "Szkoła jazdy jest zaznaczona na mapie (Służby państwowe).", ["mapa", "szkoła jazdy"]],
+  ["Załóż konto w banku i zrób kartę", "Pieniądze w banku nie przepadną przy śmierci.", ["mapa", "bank"]],
+  ["Kup telefon i zapisz pierwsze kontakty", "Zapisz je też w zakładce Kontakty, z frakcją i notatką.", ["kontakty"]],
+  ["Weź pierwszą pracę: górnik, drwal, rolnik albo rybak", "Wpisuj zarobki w zakładce Zarobki, żeby zobaczyć stawkę na godzinę.", ["mapa", "praca"]],
+  ["Spróbuj zbieractwa: kraby, glony, jagody", "Mapa → Zbieractwo → Wyznacz trasę przez te strefy.", ["mapa", "zbieractwo"]],
+  ["Odbierz pierwszy PayDay", "Włącz automatyczny PayDay w Ustawieniach.", ["ustawienia"]],
+  ["Kup pierwsze auto", "Rynek → zaznacz auto → planer pokaże, ile dni grania brakuje.", ["pojazdy"]],
+  ["Wynajmij albo kup mieszkanie", "Rynek → Nieruchomości, przycisk „Na mapie”.", ["pojazdy"]],
   ["Poznaj zasady RP", "Przeczytaj słownik wyżej: MG, PG, DM i NLR to podstawa."],
   ["Dołącz do frakcji albo rodziny", "Ustaw ją w karcie postaci, a w Ekipie zaplanuj zbiórki."],
   ["Osiągnij 5 poziom postaci", "Więcej prac i możliwości otwiera się z każdym poziomem."],
@@ -384,8 +384,9 @@ const GUIDE = [
 function renderGuide() {
   const done = U.load(GKEY, []);
   $("#guide-count").textContent = `${done.length}/${GUIDE.length}`;
-  $("#guide").innerHTML = GUIDE.map(([t, h], i) => `<li class="${done.includes(i) ? "done" : ""}"><label><input type="checkbox" data-g="${i}" ${done.includes(i) ? "checked" : ""}><span><b>${esc(t)}</b><small>${esc(h)}</small></span></label></li>`).join("");
+  $("#guide").innerHTML = GUIDE.map(([t, h, go], i) => `<li class="${done.includes(i) ? "done" : ""}" style="display:flex;gap:8px;align-items:center"><label style="flex:1"><input type="checkbox" data-g="${i}" ${done.includes(i) ? "checked" : ""}><span><b>${esc(t)}</b><small>${esc(h)}</small></span></label>${go ? `<button class="btn ghost small" type="button" data-go="${i}" aria-label="Pokaż: ${esc(t)}">Pokaż</button>` : ""}</li>`).join("");
 }
+$("#guide").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (!b) return; const [mod, q] = GUIDE[+b.dataset.go][2]; window.parent.postMessage({ __nav: mod, payload: q ? { search: q } : null }, "*"); });
 $("#guide").addEventListener("change", (e) => { const i = +e.target.dataset.g; const d = U.load(GKEY, []); U.save(GKEY, e.target.checked ? [...new Set([...d, i])] : d.filter((x) => x !== i)); renderGuide(); });
 renderGuide();
 })();

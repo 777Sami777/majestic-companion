@@ -369,6 +369,7 @@ function renderCard(m) {
       <div class="card-coords"><span>X <b>${m.x}</b></span><span>Y <b>${m.y}</b></span><button class="copy-btn" id="copy">Kopiuj</button><button class="copy-btn" id="share" title="Kod do wysłania znajomym">Kod</button></div>
       ${contactsHtml(m)}
     </div>
+    <div class="card-sec voice-sec" data-vid="${m.id}">${m.voice ? `<audio controls preload="none" src="${voiceBase + esc(m.voice)}" style="width:100%;height:34px"></audio>` : ""}<button class="copy-btn" type="button" data-rec="${m.id}">${m.voice ? "Nagraj ponownie" : "Nagraj notatkę głosową"}</button></div>
     <div class="card-sec"><p class="card-note ${m.note ? "" : "muted"}">${m.note ? esc(m.note) : m.builtin ? "Punkt z oficjalnej mapy Majestic Wiki." : "Brak notatki."}</p></div>
     ${journalHtml(m)}
     <div class="card-sec shots-sec">
@@ -885,6 +886,9 @@ function contactsHtml(m) {
   return `<div class="linked">${here.map((c) => `<button data-contact="${c.id}" title="Otwórz kontakt">${ico("me")}${esc(c.name)}</button>`).join("")}</div>`;
 }
 Host.onPayload((p) => {
+  if (typeof p.search === "string") { setCollapsed(false); $("#q").value = p.search; $("#q").dispatchEvent(new Event("input")); $("#q").focus(); return; }
+  if (Array.isArray(p.crewVault)) { if (crew) crewSend({ op: "vault", list: p.crewVault.slice(-300), by: crewNick() }); return; }
+  if (p.crewShop) { if (crew) crewSend({ op: "shop", shop: p.crewShop, by: crewNick() }); return; }
   if (Array.isArray(p.goto)) { const ll = toLL(p.goto[0], p.goto[1]); fly(ll, 4); L.popup({ className: "cd-pop" }).setLatLng(ll).setContent(`<b>${esc(p.label || "Miejsce")}</b>`).openOn(map); return; }
   if (p.crewStore) { if (crew) crewSend({ op: "store", items: p.crewStore, events: p.crewSched || undefined, by: crewNick() }); return; }
   if (p.crewTimer) { if (!crew) return toast("Najpierw połącz się z mapą ekipy (Mapa → Mapa ekipy na żywo)"); crewSend({ op: "timer", name: String(p.crewTimer.name).slice(0, 40), min: Math.min(1440, +p.crewTimer.min || 0), by: crewNick() }); return; }
@@ -1353,6 +1357,15 @@ function crewApply(ev) {
   if (ev.op === "hello") { crewPing(); const t = U.load(CREW_KEY, {}).team; if (t) crewSend({ op: "team", team: t }); return crewSnapshot(); }
   if (ev.op === "ping") { crewSeen[String(ev.by || "?").slice(0, 24)] = { t: Date.now(), on: !!ev.on, srv: String(ev.srv || "").slice(0, 20), h: +ev.h || 0, net: +ev.net || 0, rate: +ev.rate || 0, best: String(ev.best || "").slice(0, 24) }; return renderCrewPeople(); }
   if (ev.op === "team" && ev.team) { const t = { name: String(ev.team.name || "").slice(0, 32), tag: String(ev.team.tag || "").slice(0, 5), color: /^#[0-9a-f]{6}$/i.test(ev.team.color) ? ev.team.color : "#2563eb" }; U.save(CREW_KEY, { ...U.load(CREW_KEY, {}), team: t }); return renderCrewTeam(); }
+  // skarbiec i lista zakupów ekipy: zapis prosto do pamięci, zakładki odświeżają się same
+  if (ev.op === "vault" && Array.isArray(ev.list) && U.load("majestic-magazyn-sync-v1", false)) {
+    U.save("majestic-skarbiec-v1", ev.list.filter((x) => x && typeof x.note === "string" && Number.isFinite(+x.amt)).slice(-300).map((x) => ({ id: String(x.id).slice(0, 20), who: String(x.who || "").slice(0, 24), amt: Math.round(+x.amt), note: x.note.slice(0, 80), at: +x.at || Date.now() })));
+    window.parent.postMessage({ __toEkipa: { vault: true, by: ev.by } }, "*"); return;
+  }
+  if (ev.op === "shop" && ev.shop && Array.isArray(ev.shop.items) && U.load("majestic-magazyn-sync-v1", false)) {
+    U.save("majestic-zakupy-v1", { items: ev.shop.items.slice(0, 50), done: (ev.shop.done || []).slice(0, 200), who: ev.shop.who || {} });
+    window.parent.postMessage({ __reload: "crafting" }, "*"); return toast(`${ev.by || "Ekipa"} zmienił listę zakupów`);
+  }
   if (ev.op === "chat" && typeof ev.t === "string") { crewChat.push({ by: String(ev.by || "?").slice(0, 24), t: ev.t.slice(0, 300), at: Date.now() }); crewChat = crewChat.slice(-40); renderCrewChat(); Host.call("push", "Ekipa: " + String(ev.by || "?").slice(0, 24), ev.t.slice(0, 300)).catch(() => {}); return toast(`${ev.by || "Ekipa"}: ${ev.t.slice(0, 60)}`); }
   if (ev.op === "pin" && Number.isFinite(ev.x) && Number.isFinite(ev.y)) return showCrewPin(ev);
   if (ev.op === "store" && Array.isArray(ev.items)) { window.parent.postMessage({ __toEkipa: { store: ev.items.slice(0, 200), sched: Array.isArray(ev.events) ? ev.events.slice(0, 100) : undefined, by: ev.by } }, "*"); return; }
@@ -1620,4 +1633,26 @@ document.addEventListener("click", async (e) => {
     const src = await Host.call("qr", code);
     L.popup({ className: "cd-pop", maxWidth: 320 }).setLatLng(map.getCenter()).setContent(`<b>Kod ekipy</b><p>Zeskanuj telefonem. Nie pokazuj go na streamie: kto ma kod, widzi Wasze znaczniki.</p><img src="${src}" alt="Kod QR z kodem ekipy" style="width:240px;height:240px;display:block;margin:6px auto;image-rendering:pixelated">`).openOn(map);
   }
+});
+
+/* notatki głosowe przy znacznikach: do 20 s z mikrofonu, plik w folderze danych */
+let voiceBase = "", rec = null;
+Host.call("voice_base").then((b) => (voiceBase = b)).catch(() => {});
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-rec]"); if (!b) return;
+  if (rec) { rec.stop(); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { return toast("Brak dostępu do mikrofonu. Zezwól aplikacji na mikrofon w Ustawieniach Windows → Prywatność."); }
+  const chunks = [], id = b.dataset.rec; rec = new MediaRecorder(stream);
+  rec.ondataavailable = (ev) => chunks.push(ev.data);
+  rec.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop()); rec = null;
+    const blob = new Blob(chunks, { type: "audio/webm" }), url = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+    const name = await Host.call("save_voice", id, url).catch(() => null);
+    const m = state.markers.find((x) => x.id === id);
+    if (name && m) { m.voice = name; save(); renderCard(m); toast("Zapisano notatkę głosową"); } else toast("Nie udało się zapisać nagrania");
+  };
+  rec.start(); b.textContent = "● Nagrywam… kliknij, żeby zakończyć"; b.style.color = "#ef4444";
+  setTimeout(() => rec && rec.state === "recording" && rec.stop(), 20000);
 });

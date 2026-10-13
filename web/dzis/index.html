@@ -150,8 +150,9 @@ function renderCal() {
     const net = earn.filter((l) => l.at >= a && l.at < z).reduce((s, l) => s + l.amt, 0);
     const h = sessions ? sessions.filter((s) => s.connected && s.joined >= a && s.joined < z).reduce((s, x) => s + x.played, 0) / 3600 : 0;
     const e = ev.filter((x) => x.at >= a && x.at < z);
-    const tip = [net ? "zarobek " + money(net) : "", h ? h.toFixed(1) + " h gry" : "", ...e.map((x) => "akcja: " + x.title)].filter(Boolean).join("\n");
-    html += `<div class="cd ${a === today ? "now" : ""} ${h ? "pl" : ""}" title="${esc(tip)}"><i>${d}</i>${net ? `<small class="${net >= 0 ? "g" : "r"}">${Math.abs(net) >= 1000 ? Math.round(net / 1000) + "k" : net}</small>` : ""}${e.length ? `<em>${e.length}</em>` : ""}</div>`;
+    const nw = ((live && live.news) || []).filter((x) => { const t = new Date(x.publishedAt).getTime(); return t >= a && t < z; });
+    const tip = [net ? "zarobek " + money(net) : "", h ? h.toFixed(1) + " h gry" : "", ...e.map((x) => "akcja: " + x.title), ...nw.map((x) => "Majestic: " + x.title)].filter(Boolean).join("\n");
+    html += `<div class="cd ${a === today ? "now" : ""} ${h ? "pl" : ""}" title="${esc(tip)}"><i>${d}</i>${net ? `<small class="${net >= 0 ? "g" : "r"}">${Math.abs(net) >= 1000 ? Math.round(net / 1000) + "k" : net}</small>` : ""}${e.length ? `<em>${e.length}</em>` : ""}${nw.length ? `<em style="right:auto;left:5px;top:auto;bottom:3px;background:#f59e0b">M</em>` : ""}</div>`;
   }
   $("#cal").innerHTML = html;
 }

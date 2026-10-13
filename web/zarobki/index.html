@@ -94,12 +94,12 @@
   <div class="two-col" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:14px">
   <section class="panel rise" style="--d:8"><h2>Cele zakupowe</h2>
     <p class="hint">Na co zbierasz? Postęp liczy się z odłożonej kwoty i zarobków na czysto od dodania celu.</p>
-    <form id="goal-add" class="row-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input name="name" placeholder="Np. Pegassi Zentorno" aria-label="Na co zbierasz" required style="flex:2;min-width:140px"><input name="price" type="number" min="1" step="1" placeholder="Cena ($)" aria-label="Cena" required style="flex:1;min-width:90px"><input name="base" type="number" min="0" step="1" placeholder="Już mam ($)" aria-label="Już odłożone" style="flex:1;min-width:90px"><button class="btn primary small">Dodaj</button></form>
+    <form id="goal-add" class="row-form" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" name="name" placeholder="Np. Pegassi Zentorno" aria-label="Na co zbierasz" required style="flex:2;min-width:140px"><input name="price" type="number" min="1" step="1" placeholder="Cena ($)" aria-label="Cena" required style="flex:1;min-width:90px"><input name="base" type="number" min="0" step="1" placeholder="Już mam ($)" aria-label="Już odłożone" style="flex:1;min-width:90px"><button class="btn primary small">Dodaj</button></form>
     <ul class="rows" id="goals-buy" style="list-style:none;padding:0;margin:12px 0 0;display:grid;gap:10px"></ul>
   </section>
   <section class="panel rise" style="--d:8"><h2>Majątek <span id="assets-sum"></span></h2>
     <p class="hint">Auta, domy i biznesy z wartością i opłatą. Przypomnę, gdy zbliża się termin.</p>
-    <form id="asset-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input name="name" placeholder="Np. Dom 1556" aria-label="Nazwa" required style="flex:2;min-width:120px"><input name="value" type="number" min="0" step="1" placeholder="Wartość ($)" aria-label="Wartość" style="flex:1;min-width:90px"><input name="fee" type="number" min="0" step="1" placeholder="Opłata ($)" aria-label="Opłata" style="flex:1;min-width:80px"><input name="every" type="number" min="0" step="1" placeholder="co ile dni" aria-label="Co ile dni opłata" style="width:90px"><button class="btn primary small">Dodaj</button></form>
+    <form id="asset-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" name="name" placeholder="Np. Dom 1556" aria-label="Nazwa" required style="flex:2;min-width:120px"><input name="value" type="number" min="0" step="1" placeholder="Wartość ($)" aria-label="Wartość" style="flex:1;min-width:90px"><input name="fee" type="number" min="0" step="1" placeholder="Opłata ($)" aria-label="Opłata" style="flex:1;min-width:80px"><input name="every" type="number" min="0" step="1" placeholder="co ile dni" aria-label="Co ile dni opłata" style="width:90px"><button class="btn primary small">Dodaj</button></form>
     <ul id="assets" style="list-style:none;padding:0;margin:12px 0 0;display:grid;gap:8px"></ul>
   </section>
   </div>
@@ -147,6 +147,21 @@ function statsHtml(work) {
       ${jobs.map((j) => `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(j)}</span>${weeks.map((a) => { const r = rate(j, a); return `<div title="${r ? money(r) + "/h" : "brak"}" style="display:grid;gap:2px;justify-items:center"><i style="display:block;width:70%;height:${r ? Math.max(4, (r / max) * 46) : 2}px;background:${r ? "var(--accent)" : "var(--line-2)"};border-radius:2px"></i><small style="color:var(--text-3)">${r ? (r >= 1000 ? Math.round(r / 1000) + "k" : Math.round(r)) : "—"}</small></div>`; }).join("")}`).join("")}
     </div></section>`;
 }
+/* majątek w czasie: gotówka (suma zarobków i wydatków) na koniec każdego z 12 tygodni + obecna wartość majątku */
+function wealthHtml() {
+  const w0 = dayStart(Date.now()) - ((new Date().getDay() + 6) % 7) * DAY, ends = Array.from({ length: 12 }, (_, i) => w0 - (10 - i) * 7 * DAY);
+  const assets = U.load("majestic-majatek-v1", []).reduce((a, x) => a + (x.value || 0), 0), base = U.load("majestic-cele-zakupy-v1", []).reduce((a, g) => Math.max(a, g.base || 0), 0);
+  const pts = ends.map((e) => log.filter((l) => l.at < e).reduce((a, l) => a + l.amt, 0) + assets);
+  if (log.length < 2) return "";
+  const max = Math.max(...pts, 1), min = Math.min(...pts, 0), W = 1000, H = 150, x = (i) => (i / (pts.length - 1)) * W, y = (v) => H - ((v - min) / (max - min || 1)) * H;
+  return `<section class="panel rise" style="--d:8;margin-top:14px"><h2>Majątek w czasie <span>${money(pts[pts.length - 1])}</span></h2>
+    <p class="hint">Suma zarobków na czysto${assets ? " + wartość majątku (" + money(assets) + ")" : ""}, tydzień po tygodniu.</p>
+    <svg viewBox="-4 -6 ${W + 8} ${H + 26}" style="width:100%;height:auto" role="img" aria-label="Wykres majątku z 12 tygodni, obecnie ${money(pts[pts.length - 1])}">
+      <polyline points="${pts.map((v, i) => x(i) + "," + y(v)).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>
+      ${pts.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="var(--accent)"><title>${new Date(ends[i] - DAY).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}: ${money(v)}</title></circle>`).join("")}
+      ${[0, 5, 11].map((i) => `<text x="${x(i)}" y="${H + 20}" font-size="13" fill="var(--text-3)" text-anchor="${i ? (i === 11 ? "end" : "middle") : "start"}">${i === 11 ? "teraz" : new Date(ends[i] - DAY).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</text>`).join("")}
+    </svg></section>`;
+}
 function render() {
   $("#jobs").innerHTML = [...new Set([...log.map((l) => l.job), ...JOBS])].map((j) => `<option value="${esc(j)}">`).join("");
   if (!log.length) { $("#out").innerHTML = `<div class="panel empty rise" style="--d:2"><b>Brak wpisów</b>Dodaj pierwszy zarobek, np. „Górnik, 12000, 45 min”.</div>`; return; }
@@ -172,7 +187,8 @@ function render() {
       <section class="panel rise" style="--d:7"><h2>Ostatnie wpisy</h2>
         <ul class="log">${log.slice().sort((a, b) => b.at - a.at).slice(0, 40).map((l, i) => `<li style="--i:${Math.min(i, 15)}"><time>${new Date(l.at).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}</time><span>${esc(l.job)}${l.qty ? ` <small class="qty">${l.qty} szt. × ${money(l.price)}</small>` : ""}</span><span class="amt ${l.amt < 0 ? "neg" : ""}">${money(l.amt)}</span><span class="min">${l.min ? l.min + " min" : "—"}</span><button data-del="${l.id}" title="Usuń wpis"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join("")}</ul></section>
     </div>
-    ${statsHtml(work)}`;
+    ${statsHtml(work)}
+    ${wealthHtml()}`;
 }
 /* wykres 14 dni: słupek zarobku w górę, wydatków w dół */
 function chartHtml() {

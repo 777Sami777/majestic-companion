@@ -57,11 +57,16 @@
       <section class="panel rise" style="--d:2"><h2>Magazyn</h2>
         <form class="it-add" id="it-add" autocomplete="off"><input type="text" name="name" maxlength="40" placeholder="np. Materiały do broni"><input type="number" name="qty" value="1" min="0" aria-label="Ilość"><button class="btn primary">Dodaj</button></form>
         <ul class="items" id="items"></ul>
-        <label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--text-2);font-size:13.5px"><input type="checkbox" id="store-sync"> Grafik i magazyn na żywo z ekipą (przez mapę ekipy)</label>
+        <label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--text-2);font-size:13.5px"><input type="checkbox" id="store-sync"> Grafik, magazyn, skarbiec i lista zakupów na żywo z ekipą (przez mapę ekipy)</label>
+      </section>
+      <section class="panel rise" style="--d:3"><h2>Skarbiec organizacji <span id="v-sum"></span></h2>
+        <p class="hint">Wspólna kasa: wpłaty i wypłaty z opisem. Z włączonym „na żywo z ekipą” widzi ją cała ekipa.</p>
+        <form id="v-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" name="who" maxlength="24" placeholder="Kto" aria-label="Kto" required style="flex:1;min-width:90px"><input name="amt" type="number" step="1" placeholder="Kwota (minus = wypłata)" aria-label="Kwota" required style="flex:1;min-width:120px"><input type="text" name="note" maxlength="80" placeholder="Za co" aria-label="Opis" required style="flex:2;min-width:120px"><button class="btn">Zapisz</button></form>
+        <ul id="v-list" style="list-style:none;padding:0;margin:10px 0 0;display:grid;gap:4px;max-height:260px;overflow:auto"></ul>
       </section>
       <section class="panel rise" style="--d:3"><h2>Rozliczenie akcji</h2>
         <p class="hint">Kto ile wydał i ile dostał do ręki. Zysk dzielę po równo i liczę, kto komu ile oddaje.</p>
-        <form id="st-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input name="who" maxlength="24" placeholder="Kto" aria-label="Kto" required style="flex:2;min-width:100px"><input name="spent" type="number" min="0" step="1" placeholder="Wydał ($)" aria-label="Wydał" style="flex:1;min-width:80px"><input name="got" type="number" min="0" step="1" placeholder="Dostał ($)" aria-label="Dostał" style="flex:1;min-width:80px"><button class="btn">Dodaj</button></form>
+        <form id="st-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" name="who" maxlength="24" placeholder="Kto" aria-label="Kto" required style="flex:2;min-width:100px"><input name="spent" type="number" min="0" step="1" placeholder="Wydał ($)" aria-label="Wydał" style="flex:1;min-width:80px"><input name="got" type="number" min="0" step="1" placeholder="Dostał ($)" aria-label="Dostał" style="flex:1;min-width:80px"><button class="btn">Dodaj</button></form>
         <ul id="st-list" style="list-style:none;padding:0;margin:10px 0;display:grid;gap:4px"></ul>
         <pre class="report" id="st-out"></pre>
         <div style="display:flex;gap:8px"><button class="btn primary" id="st-copy" type="button">Kopiuj rozliczenie</button><button class="btn" id="st-clear" type="button">Wyczyść</button></div>
@@ -258,6 +263,18 @@ $("#tpl-fields").addEventListener("input", (e) => { const f = e.target.dataset.t
 $("#tpl-copy").addEventListener("click", () => U.copy(tplText(), "Skopiowano ogłoszenie"));
 $("#tpl-send").addEventListener("click", async () => { if (!Host.available) return U.toast("Wysyłanie działa w aplikacji"); const ok = await Host.call("discord_send", tplText(), ""); U.toast(ok ? "Wysłano na Discorda" : "Ustaw webhook Discorda w Ustawieniach"); });
 renderTpl();
+/* skarbiec: lista operacji, saldo = suma */
+const VKEY = "majestic-skarbiec-v1";
+function renderVault() {
+  const v = U.load(VKEY, []), sum = v.reduce((a, x) => a + x.amt, 0);
+  $("#v-sum").textContent = "saldo " + money(sum);
+  $("#v-list").innerHTML = v.slice().reverse().map((x) => `<li style="display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:6px 10px;border-radius:4px;background:var(--card)"><small style="color:var(--text-3)">${new Date(x.at).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}</small><span><b>${esc(x.who)}</b> · ${esc(x.note)}</span><b style="color:${x.amt >= 0 ? "#22c55e" : "#ef4444"}">${x.amt >= 0 ? "+" : ""}${money(x.amt)}</b><button type="button" data-vdel="${esc(x.id)}" aria-label="Usuń wpis" title="Usuń" style="color:var(--text-3)">×</button></li>`).join("") || `<li style="color:var(--text-3)">Pusto. Dodaj pierwszą wpłatę.</li>`;
+}
+const vaultSync = () => { if (U.load("majestic-magazyn-sync-v1", false)) window.parent.postMessage({ __toMap: { crewVault: U.load(VKEY, []) } }, "*"); };
+$("#v-add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.target, v = U.load(VKEY, []); v.push({ id: uid(), who: f.who.value.trim(), amt: Math.round(+f.amt.value), note: f.note.value.trim(), at: Date.now() }); U.save(VKEY, v); f.amt.value = ""; f.note.value = ""; renderVault(); vaultSync(); });
+$("#v-list").addEventListener("click", (e) => { const b = e.target.closest("[data-vdel]"); if (!b) return; U.save(VKEY, U.load(VKEY, []).filter((x) => x.id !== b.dataset.vdel)); renderVault(); vaultSync(); });
+Host.onPayload((p) => { if (p.vault) { renderVault(); U.toast(`${p.by || "Ekipa"} zmienił skarbiec`); } });
+renderVault();
 })();
 </script>
 </body>

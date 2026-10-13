@@ -26,11 +26,18 @@ window.addEventListener("message", async (e) => {
   if (m.__look) broadcast({ __look: true });
   if (m.__reloadAll) location.reload();
   if (m.__toMap) frames.mapa.contentWindow?.postMessage({ __payload: m.__toMap }, "*");
-  if (m.__toEkipa) frames.ekipa.contentWindow?.postMessage({ __payload: m.__toEkipa }, "*");
-  if (m.__toTimers) frames.minutniki.contentWindow?.postMessage({ __payload: { add: m.__toTimers } }, "*");
+  if (m.__toEkipa) deliver("ekipa", { __payload: m.__toEkipa });
+  if (m.__toTimers) deliver("minutniki", { __payload: { add: m.__toTimers } });
   if (m.__reload) Object.entries(frames).forEach(([k, f]) => { if (f.src && (m.__reload === true || m.__reload === k)) f.contentWindow.location.reload(); });
 });
 
+/* zakładka jeszcze nieotwarta: wczytaj ją w tle i doręcz wiadomość po załadowaniu (np. magazyn od ekipy) */
+function deliver(mod, msg) {
+  const f = frames[mod]; if (!f) return;
+  if (f.dataset.loaded) return f.contentWindow?.postMessage(msg, "*");
+  if (!f.src && f.dataset.src) f.src = f.dataset.src + "?embed=1";
+  f.addEventListener("load", () => setTimeout(() => f.contentWindow?.postMessage(msg, "*"), 300), { once: true });
+}
 function broadcast(msg) {
   Object.values(frames).forEach((f) => { try { f.contentWindow && f.contentWindow.postMessage(msg, "*"); } catch {} });
 }
@@ -463,6 +470,7 @@ if (!store.get("majestic-kreator-v1", false) && !store.get("majestic-samouczek-v
 else if (!store.get("majestic-samouczek-v1", false)) setTimeout(showTour, 1500);
 /* „Co nowego” po aktualizacji */
 const CHANGES = {
+  "2.11.0": ["Ustawienia w zakładkach (Wygląd / Gra / Ekipa / Dane) z wyszukiwarką", "Skarbiec organizacji w Ekipie, widoczny dla całej ekipy", "Wspólna lista zakupów z informacją, kto co kupił", "Notatki głosowe przy znacznikach na mapie", "Wykres majątku z 12 tygodni (Zarobki)", "Newsy Majestic w kalendarzu", "Przewodnik nowego gracza z przyciskiem „Pokaż”", "Wersja angielska: prawie wszystkie napisy", "Poprawka: zmiany od ekipy nie giną, gdy zakładka Ekipa jest zamknięta"],
   "2.10.1": ["Nowy instalator w stylu aplikacji: wybór folderu, skróty, start z Windowsem", "Instalacja działa także, gdy aplikacja jest włączona"],
   "2.10.0": ["Własne skróty Ctrl+Shift+litera (Ustawienia → Skróty w grze)", "Planer sesji krok po kroku (Minutniki), widoczny też w widżecie", "Wyszukiwarka szuka pojazdów, nieruchomości i przepisów z wiki", "Warstwy tras i stref na mapie, każdą można ukryć", "Historia cen pojazdów: strzałka ▲▼ przy cenie", "Ekipa: porównanie $/h i najlepszej pracy, ranking na Discorda, kod ekipy jako QR", "Historia postaci do PDF (karta, dziennik, galeria)", "Motyw według pory dnia"],
   "2.9.0": ["Kreator pierwszego uruchomienia (serwer, postać, frakcja, praca)", "Zgłoś błąd jednym kliknięciem (Ustawienia)", "Ukrywanie i kolejność zakładek", "Szybkie akcje na górnym pasku", "Kalkulator w wyszukiwarce: wpisz np. 1.2m-450k", "Notatki z kategoriami i przypinaniem", "Przypomnienia cykliczne (co tydzień, co X dni)", "Tryb kompaktowy okna", "Dzienny cel zbierania z serią dni w widżecie"],

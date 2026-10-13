@@ -244,8 +244,7 @@ class Api:
         try:
             return {"ok": True, "exe": install(dest, opts, report)}
         except PermissionError as e:
-            return {"ok": False, "error": f"Brak dostępu do pliku: {e.filename}
-Zamknij Majestic Companion (także ikonę przy zegarze) i spróbuj ponownie."}
+            return {"ok": False, "error": f"Brak dostępu do pliku: {e.filename}\nZamknij Majestic Companion (także ikonę przy zegarze) i spróbuj ponownie."}
         except Exception as e:  # pokazujemy błąd zamiast cichego zamknięcia
             return {"ok": False, "error": f"Instalacja nie powiodła się:\n{e}"}
 

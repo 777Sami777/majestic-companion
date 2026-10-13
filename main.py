@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.10.1"
+APP_VERSION = "2.11.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -262,6 +262,22 @@ class Api:
             return None
         self._window.evaluate_js(f"window.__shot && window.__shot({json.dumps(name)})")
         return name
+
+    def save_voice(self, mid, data_url):
+        """Notatka głosowa przy znaczniku: plik webm w folderze danych, zwraca nazwę."""
+        import base64
+        head, _, b64 = str(data_url).partition(",")
+        if not head.startswith("data:audio/") or len(b64) > 4_000_000:
+            return None
+        d = os.path.join(DATA_DIR, "glos")
+        os.makedirs(d, exist_ok=True)
+        name = re.sub(r"[^\w-]", "", str(mid))[:40] + "-" + uuid.uuid4().hex[:6] + ".webm"
+        with open(os.path.join(d, name), "wb") as f:
+            f.write(base64.b64decode(b64))
+        return name
+
+    def voice_base(self):
+        return file_url(os.path.join(DATA_DIR, "glos")) + "/"
 
     def qr(self, text):
         """Kod QR jako obrazek (data URL) do pokazania w aplikacji."""
@@ -1115,7 +1131,7 @@ def main():
         start_tray(api)
 
     webview.start(on_start, gui="edgechromium", private_mode=False,
-                  storage_path=os.path.join(DATA_DIR, "webview"))
+                  storage_path=os.environ.get("MJC_STORAGE") or os.path.join(DATA_DIR, "webview"))  # MJC_STORAGE: test na czystych danych
 
 
 if __name__ == "__main__":

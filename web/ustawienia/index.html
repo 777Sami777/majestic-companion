@@ -40,6 +40,10 @@
 <div class="wrap">
   <div class="hero rise"><div><h1>Ustawienia</h1><p class="sub">Dane zapisują się tylko na tym komputerze. Kopia zapasowa pozwala przenieść wszystko na inny komputer.</p></div></div>
 
+  <div class="set-bar rise" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0">
+    <div class="chips" id="set-tabs" role="tablist" aria-label="Grupy ustawień"><button class="chip on" data-st="" role="tab" type="button">Wszystko</button><button class="chip" data-st="look" role="tab" type="button">Wygląd</button><button class="chip" data-st="game" role="tab" type="button">Gra</button><button class="chip" data-st="crew" role="tab" type="button">Ekipa i Discord</button><button class="chip" data-st="data" role="tab" type="button">Dane</button></div>
+    <input type="text" id="set-q" placeholder="Szukaj ustawienia…" aria-label="Szukaj ustawienia" style="flex:1;min-width:180px;max-width:320px">
+  </div>
   <section class="panel rise" style="--d:1"><h2>Gra</h2>
     <div class="row"><div class="txt"><b>Serwer Majestic</b><small>Dla tego serwera pobierane są terytoria gangów z wiki.</small></div><select id="server"></select></div>
     <div class="row"><div class="txt"><b>Kompaktowa nakładka</b><small>Po wciśnięciu klawisza nakładki okno staje się wąskim, lekko przezroczystym panelem przy prawej krawędzi ekranu. Szybkie minutniki: Ctrl+Shift+1, 2, 3.</small></div><label class="tog"><input type="checkbox" id="compact"><i></i></label></div>
@@ -461,6 +465,23 @@ $("#pack-in").addEventListener("click", async () => {
 $("#widget").addEventListener("click", () => Host.call("open_widget").then(() => U.toast("Widżet jest w prawym górnym rogu ekranu")).catch(() => U.toast("Widżet działa w aplikacji Majestic Companion")));
 renderLook();
 load().then(loadRun).then(loadDiscord).then(loadCloud).then(loadPhone).then(renderKeys);
+})();
+
+/* zakładki ustawień i wyszukiwarka: grupa z nagłówka sekcji, filtr po tekście wierszy */
+(() => {
+  const G = { "Gra": "game", "Uruchamianie": "game", "Telefon i widżet": "game", "Skróty w grze": "game", "Skróty": "game", "Wygląd i wygoda": "look", "Układ": "look", "Głos i bateria": "look", "Discord": "crew", "Postacie": "crew", "Dane": "data", "Drugi komputer": "data", "Zrzuty ekranu": "data" };
+  const secs = [...document.querySelectorAll("section.panel")].map((s) => ({ s, g: G[(s.querySelector("h2")?.firstChild?.textContent || "").trim()] || "game" }));
+  let tab = "";
+  const apply = () => {
+    const q = document.getElementById("set-q").value.trim().toLowerCase();
+    secs.forEach(({ s, g }) => {
+      const rows = [...s.querySelectorAll(".row")]; let any = false;
+      rows.forEach((r) => { const ok = !q || r.textContent.toLowerCase().includes(q) || s.querySelector("h2").textContent.toLowerCase().includes(q); r.style.display = ok ? "" : "none"; any = any || ok; });
+      s.hidden = (tab && g !== tab) || (q && !any && !s.querySelector("h2").textContent.toLowerCase().includes(q));
+    });
+  };
+  document.getElementById("set-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-st]"); if (!b) return; tab = b.dataset.st; document.querySelectorAll("#set-tabs .chip").forEach((c) => { c.classList.toggle("on", c === b); c.setAttribute("aria-selected", c === b); }); apply(); });
+  document.getElementById("set-q").addEventListener("input", apply);
 })();
 </script>
 </body>
