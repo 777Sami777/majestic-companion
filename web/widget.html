@@ -75,6 +75,8 @@ input:focus{outline:none;border-color:var(--accent)}
 
     <section class="box" id="crew-box" hidden><h3>Ekipa</h3><div id="crew"></div></section>
 
+    <section class="box"><h3>Na dziś <span class="muted" id="td-count"></span></h3><div id="todo"></div></section>
+
     <section class="box"><h3>Szybka notatka</h3>
       <form id="note" class="row" autocomplete="off"><input name="t" maxlength="500" placeholder="Np. numer, tablica, miejsce…" aria-label="Szybka notatka" style="flex:1"><button class="b" style="flex:0 0 auto;padding:6px 10px">Zapisz</button></form>
       <div class="ok" id="note-ok" aria-live="polite"></div>
@@ -130,6 +132,12 @@ function tick() {
   $("#c-goal-bar").style.width = cg.goal ? Math.min(100, (done / cg.goal) * 100) + "%" : "0%";
   let streak = 0; if (cg.goal) { const d = new Date(); if ((cg.days[dk] || 0) + (c.on ? c.count || 0 : 0) < cg.goal) d.setDate(d.getDate() - 1); while ((cg.days[d.toISOString().slice(0, 10)] || 0) + (d.toISOString().slice(0, 10) === dk && c.on ? c.count || 0 : 0) >= cg.goal) { streak++; d.setDate(d.getDate() - 1); } }
   $("#c-streak").textContent = cg.goal ? `${done}/${cg.goal}${streak ? " · seria " + streak + " d" : ""}` : "";
+  // zadania dnia (te same co w zakładce Dziś); odhaczenia kasują się o północy
+  const tdl = load("majestic-zadania-v1", null);
+  if (tdl && document.activeElement?.closest?.("#todo") == null) { const fresh = tdl.day === new Date().toDateString(), done = fresh ? tdl.done : [];
+    $("#td-count").textContent = `${done.length}/${tdl.items.length}`;
+    const html = tdl.items.map((t, i) => `<label style="display:flex;gap:8px;align-items:center;padding:3px 0;${done.includes(t) ? "opacity:.5;text-decoration:line-through" : ""}"><input type="checkbox" data-td="${i}" ${done.includes(t) ? "checked" : ""}><span>${esc(t)}</span></label>`).join("");
+    if ($("#todo").innerHTML !== html) $("#todo").innerHTML = html; }
   // pierwszy niezrealizowany cel zakupowy
   const goal = load("majestic-cele-zakupy-v1", []).find((g) => !g.done) || load("majestic-cele-zakupy-v1", [])[0];
   $("#goal-box").hidden = !goal;
@@ -150,6 +158,14 @@ async function poll() {
 }
 const collect = (cmd, arg) => api() && api().collect(cmd, arg ?? null).then(() => setTimeout(tick, 150));
 $("#c-toggle").onclick = () => collect("toggle");
+$("#todo").addEventListener("change", (e) => {
+  const i = e.target.dataset.td; if (i === undefined) return;
+  const td = load("majestic-zadania-v1", null); if (!td) return; const today = new Date().toDateString();
+  if (td.day !== today) { td.day = today; td.done = []; }
+  const t = td.items[+i]; td.done = e.target.checked ? [...new Set([...td.done, t])] : td.done.filter((x) => x !== t);
+  try { localStorage.setItem("majestic-zadania-v1", JSON.stringify(td)); } catch {}
+  e.target.blur(); tick();
+});
 $("#c-goal").onchange = (e) => { const g = load("majestic-zbieranie-cel-v1", { goal: 0, days: {} }); g.goal = Math.max(0, Math.round(+e.target.value || 0)); try { localStorage.setItem("majestic-zbieranie-cel-v1", JSON.stringify(g)); } catch {} tick(); };
 $("#c-plus").onclick = () => collect("add", 1);
 $("#c-plus5").onclick = () => collect("add", 5);

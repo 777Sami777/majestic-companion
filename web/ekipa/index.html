@@ -64,6 +64,11 @@
         <form id="v-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" name="who" maxlength="24" placeholder="Kto" aria-label="Kto" required style="flex:1;min-width:90px"><input name="amt" type="number" step="1" placeholder="Kwota (minus = wypłata)" aria-label="Kwota" required style="flex:1;min-width:120px"><input type="text" name="note" maxlength="80" placeholder="Za co" aria-label="Opis" required style="flex:2;min-width:120px"><button class="btn">Zapisz</button></form>
         <ul id="v-list" style="list-style:none;padding:0;margin:10px 0 0;display:grid;gap:4px;max-height:260px;overflow:auto"></ul>
       </section>
+      <section class="panel rise" style="--d:3"><h2>Archiwum miesiąca</h2>
+        <p class="hint">Akcje z grafiku, ruchy w skarbcu i magazyn z wybranego miesiąca w jednym raporcie.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><input type="month" id="arch-m" aria-label="Miesiąc archiwum" style="max-width:180px"><button class="btn primary" id="arch-copy" type="button">Kopiuj raport</button><button class="btn" id="arch-dc" type="button">Wyślij na Discorda</button></div>
+        <pre class="report" id="arch-out" style="margin-top:10px;max-height:240px;overflow:auto"></pre>
+      </section>
       <section class="panel rise" style="--d:3"><h2>Rozliczenie akcji</h2>
         <p class="hint">Kto ile wydał i ile dostał do ręki. Zysk dzielę po równo i liczę, kto komu ile oddaje.</p>
         <form id="st-add" autocomplete="off" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" name="who" maxlength="24" placeholder="Kto" aria-label="Kto" required style="flex:2;min-width:100px"><input name="spent" type="number" min="0" step="1" placeholder="Wydał ($)" aria-label="Wydał" style="flex:1;min-width:80px"><input name="got" type="number" min="0" step="1" placeholder="Dostał ($)" aria-label="Dostał" style="flex:1;min-width:80px"><button class="btn">Dodaj</button></form>
@@ -275,6 +280,23 @@ $("#v-add").addEventListener("submit", (e) => { e.preventDefault(); const f = e.
 $("#v-list").addEventListener("click", (e) => { const b = e.target.closest("[data-vdel]"); if (!b) return; U.save(VKEY, U.load(VKEY, []).filter((x) => x.id !== b.dataset.vdel)); renderVault(); vaultSync(); });
 Host.onPayload((p) => { if (p.vault) { renderVault(); U.toast(`${p.by || "Ekipa"} zmienił skarbiec`); } });
 renderVault();
+/* archiwum miesiąca: tekst z grafiku, skarbca i magazynu */
+function archText() {
+  const m = $("#arch-m").value; if (!m) return "";
+  const [y, mo] = m.split("-").map(Number), a = new Date(y, mo - 1, 1).getTime(), z = new Date(y, mo, 1).getTime(), inM = (t) => t >= a && t < z;
+  const name = new Date(a).toLocaleDateString("pl-PL", { month: "long", year: "numeric" });
+  const ev = (data.events || []).filter((e) => inM(e.at)).sort((p, q) => p.at - q.at), v = U.load(VKEY, []).filter((x) => inM(x.at));
+  const inSum = v.filter((x) => x.amt > 0).reduce((s, x) => s + x.amt, 0), outSum = v.filter((x) => x.amt < 0).reduce((s, x) => s + x.amt, 0);
+  return [`**Archiwum ekipy: ${name}**`, "", `**Akcje (${ev.length}):**`, ...(ev.length ? ev.map((e) => `• ${new Date(e.at).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} ${e.title}`) : ["• brak"]),
+    "", `**Skarbiec:** wpłaty ${money(inSum)}, wypłaty ${money(-outSum)}, bilans ${money(inSum + outSum)}`, ...v.map((x) => `• ${new Date(x.at).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })} ${x.who}: ${x.amt >= 0 ? "+" : ""}${money(x.amt)} (${x.note})`),
+    "", `**Magazyn teraz:** ${(data.items || []).length ? data.items.map((i) => `${i.name} ×${i.qty}`).join(", ") : "pusty"}`].join("\n");
+}
+const am = new Date(); $("#arch-m").value = `${am.getFullYear()}-${String(am.getMonth() + 1).padStart(2, "0")}`;
+const renderArch = () => ($("#arch-out").textContent = archText());
+$("#arch-m").addEventListener("change", renderArch);
+$("#arch-copy").addEventListener("click", () => U.copy(archText(), "Skopiowano archiwum"));
+$("#arch-dc").addEventListener("click", async () => { if (!Host.available) return; const ok = await Host.call("discord_send", archText(), "dcReport"); U.toast(ok ? "Wysłano archiwum na Discorda" : "Ustaw webhook Discorda w Ustawieniach"); });
+renderArch();
 })();
 </script>
 </body>

@@ -1,0 +1,51 @@
+# Wydanie: tag vX.Y.Z → budowa aplikacji i instalatora na czystym Windows, test instalacji, release z plikami.
+name: Wydanie
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Zależności
+        run: pip install pywebview==6.2.1 pyinstaller==6.22.3 pystray==0.19.5 pillow==12.3.0 segno==1.6.6
+      - name: Wersja z tagu zgadza się z kodem
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $code = (Select-String -Path main.py -Pattern 'APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          if ($tag -ne $code) { throw "Tag $tag a w main.py jest $code" }
+          "VER=$tag" | Out-File $env:GITHUB_ENV -Append
+      - name: Aplikacja
+        run: pyinstaller --noconfirm --distpath release --workpath build MajesticCompanion.spec
+      - name: Zip i dane instalatora
+        shell: pwsh
+        run: |
+          Compress-Archive -Path release/MajesticCompanion -DestinationPath release/MajesticCompanion.zip -Force
+          New-Item -ItemType Directory -Force setup_build | Out-Null
+          Copy-Item release/MajesticCompanion.zip setup_build/
+          Set-Content -Path setup_build/version.txt -Value $env:VER -NoNewline -Encoding utf8
+      - name: Instalator
+        run: pyinstaller --noconfirm --distpath release --workpath build MajesticCompanionSetup.spec
+      - name: Test instalacji
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP "test-instalacji"
+          $p = Start-Process release/MajesticCompanionSetup.exe -ArgumentList "--test", "`"$dest`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Instalator zwrócił $($p.ExitCode)" }
+          $out = Join-Path $env:RUNNER_TEMP "wersja.txt"
+          $a = Start-Process (Join-Path $dest "MajesticCompanion.exe") -ArgumentList "--version-file", "`"$out`"" -Wait -PassThru
+          $v = (Get-Content $out -Raw).Trim()
+          if ($v -ne $env:VER) { throw "Zainstalowana aplikacja ma wersję $v, oczekiwano $env:VER" }
+          "OK: zainstalowana wersja $v"
+      - name: Wydanie na GitHubie
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" release/MajesticCompanion.zip release/MajesticCompanionSetup.exe --title "Majestic Companion $env:VER" --notes-file wydanie.md

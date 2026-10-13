@@ -56,6 +56,7 @@
   <section class="panel rise" style="--d:2"><h2>Wygląd i wygoda</h2>
     <div class="row"><div class="txt"><b>Motyw</b><small>Zmienia kolory całej aplikacji. Jasne motywy przydają się w dzień.</small></div><div class="chips" id="theme"><button class="chip" data-v="dark">MDT granat</button><button class="chip" data-v="weazel">Weazel News</button><button class="chip" data-v="noc">Nocny</button><button class="chip" data-v="wojsko">Wojskowy</button><button class="chip" data-v="szeryf">Szeryf</button><button class="chip" data-v="light">Jasny</button><button class="chip" data-v="lspd">LSPD</button><button class="chip" data-v="ems">EMS</button><button class="chip" data-v="ballas">Ballas</button><button class="chip" data-v="vagos">Vagos</button><button class="chip" data-v="families">Families</button><button class="chip" data-v="bloods">Bloods</button></div></div>
     <div class="row"><div class="txt"><b>Kolor akcentu</b><small>Przyciski, wyróżnienia i aktywna zakładka.</small></div><div class="sws" id="accent"></div></div>
+    <div class="row"><div class="txt"><b>Własny motyw</b><small>Dowolny kolor akcentu i tła oraz obrazek w tle, np. zrzut z gry (przyciemniony, żeby tekst był czytelny).</small></div><div class="btns"><label class="field" style="display:flex;gap:6px;align-items:center"><span>Akcent</span><input type="color" id="c-acc" aria-label="Własny kolor akcentu"></label><label class="field" style="display:flex;gap:6px;align-items:center"><span>Tło</span><input type="color" id="c-bg" aria-label="Własny kolor tła"></label><button class="btn ghost small" id="c-img" type="button">Obrazek w tle</button><button class="btn ghost small" id="c-reset" type="button">Przywróć motyw</button></div></div>
     <div class="row"><div class="txt"><b>Dźwięki interfejsu</b><small>Ciche kliknięcie przy przyciskach.</small></div><label class="tog"><input type="checkbox" id="sounds"><i></i></label></div>
     <div class="row"><div class="txt"><b>Przypomnienie o przerwie</b><small>Powiadomienie, gdy jedna sesja trwa dłużej niż wybrany czas.</small></div><select id="breakH"><option value="0">Wyłączone</option><option value="1">Po 1 h</option><option value="2">Po 2 h</option><option value="3">Po 3 h</option><option value="4">Po 4 h</option></select></div>
     <div class="row"><div class="txt"><b>Samouczek</b><small>Krótki przegląd skrótów i zakładek.</small></div><button class="btn ghost small" id="tour" type="button">Pokaż samouczek</button></div>
@@ -69,6 +70,8 @@
     <div class="row"><div class="txt"><b>Start z Windowsem</b><small>Aplikacja włącza się sama po uruchomieniu komputera, schowana przy zegarze.</small></div><label class="tog"><input type="checkbox" id="autostart"><i></i></label></div>
     <div class="row"><div class="txt"><b>Zamykanie chowa do zasobnika</b><small>Krzyżyk chowa okno do ikony przy zegarze. Minutniki, przypomnienia i powiadomienia działają dalej. Wyłączysz z menu ikony.</small></div><label class="tog"><input type="checkbox" id="tray"><i></i></label></div>
     <div class="row"><div class="txt"><b>Wersja aplikacji</b><small id="ver">Sprawdzam…</small></div><button class="btn ghost small" id="upd">Sprawdź aktualizacje</button></div>
+    <div class="row" id="rb-row" hidden><div class="txt"><b>Cofnij aktualizację</b><small id="rb-info">Nowa wersja coś zepsuła? Przywróć poprzednią jednym kliknięciem. Twoje dane zostają.</small></div><button class="btn ghost small" id="rb" type="button">Przywróć poprzednią</button></div>
+    <div class="row"><div class="txt"><b>Limit gry dziennie</b><small>Ostrzeżenie 15 minut przed limitem i po jego przekroczeniu (liczy czas z logów gry).</small></div><select id="play-limit" aria-label="Limit gry dziennie" style="max-width:160px"><option value="0">Bez limitu</option><option value="1">1 h</option><option value="2">2 h</option><option value="3">3 h</option><option value="4">4 h</option><option value="5">5 h</option><option value="6">6 h</option><option value="8">8 h</option></select></div>
   </section>
 
   <section class="panel rise" style="--d:2"><h2>Telefon i widżet</h2>
@@ -228,6 +231,27 @@ $("#prof-del").addEventListener("click", () => {
   switchProf(to); const q = profs(); q.list = q.list.filter((x) => x.id !== gone); U.save(PROF, q); localStorage.removeItem("majestic-p-" + gone); renderProf();
 });
 renderProf();
+/* własny motyw: kolory i obrazek w tle (wygląd w localStorage, jak reszta) */
+const LK = "majestic-wyglad-v1";
+const lookNow = () => U.load(LK, {});
+function renderCustom() { const p = lookNow(), css = getComputedStyle(document.documentElement); $("#c-acc").value = p.accent && /^#[0-9a-f]{6}$/i.test(p.accent) ? p.accent : (css.getPropertyValue("--accent").trim() || "#2563eb"); $("#c-bg").value = p.bgColor || "#0a1424"; $("#c-img").textContent = p.bgImg ? "Zmień obrazek" : "Obrazek w tle"; $("#play-limit").value = String(p.playLimit || 0); }
+const lookSet = (patch) => { U.save(LK, { ...lookNow(), ...patch }); window.parent.postMessage({ __reloadAll: true }, "*"); };
+$("#c-acc").addEventListener("change", (e) => lookSet({ accent: e.target.value }));
+$("#c-bg").addEventListener("change", (e) => lookSet({ bgColor: e.target.value }));
+$("#c-img").addEventListener("click", async () => {
+  if (!Host.available) return;
+  const r = await Host.call("pick_image"); if (!r || !r[0]) return;
+  lookSet({ bgImg: (await Host.call("shots_base")) + r[0] });
+});
+$("#c-reset").addEventListener("click", () => lookSet({ accent: "", bgColor: "", bgImg: "" }));
+$("#play-limit").addEventListener("change", (e) => { U.save(LK, { ...lookNow(), playLimit: +e.target.value }); say(+e.target.value ? `Limit: ${e.target.value} h dziennie` : "Bez limitu"); });
+renderCustom();
+/* cofnięcie aktualizacji: poprzednia wersja odłożona przy ostatniej aktualizacji */
+if (Host.available) Host.call("previous_version").then((v) => { if (!v) return; $("#rb-row").hidden = false; $("#rb-info").textContent = `Nowa wersja coś zepsuła? Przywróć ${v} jednym kliknięciem. Twoje dane zostają.`; }).catch(() => {});
+$("#rb").addEventListener("click", async (e) => {
+  const b = e.currentTarget; if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Na pewno? Aplikacja się zrestartuje"; return; }
+  const r = await Host.call("rollback"); say(r.ok ? `Przywracam ${r.version}…` : r.error);
+});
 /* skróty w grze: Ctrl+Shift+litera */
 const KEYN = [["note", "Szybka notatka", "N"], ["collect", "Zbieranie start/stop", "Z"], ["add", "Zbieranie +1", "X"], ["shot", "Zrzut do galerii", "S"]];
 function renderKeys() {

@@ -103,6 +103,11 @@
     <ul id="assets" style="list-style:none;padding:0;margin:12px 0 0;display:grid;gap:8px"></ul>
   </section>
   </div>
+  <section class="panel rise" style="--d:8"><h2>Import zarobków</h2>
+    <p class="hint">Wklej listę z Discorda, notatek albo pliku CSV (też z eksportu aplikacji). Jedna linia = jeden wpis, np. „Rybak 12000 45” albo „2026-10-12;Górnik;8500;30”. Minus przed kwotą = wydatek.</p>
+    <textarea id="imp" rows="5" aria-label="Lista zarobków do importu" placeholder="Rybak 12000 45&#10;Kraby 7 500 30&#10;Paliwo -1200"></textarea>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="btn primary small" id="imp-go" type="button">Importuj</button><span class="hint" id="imp-prev" style="margin:0"></span></div>
+  </section>
   <section class="panel rise" style="--d:8"><h2>Kalkulator craftingu</h2>
     <p class="hint">Wpisz przepis raz: co powstaje, z jakich materiałów i ile one kosztują. Potem ustaw liczbę sztuk, a kalkulator policzy materiały, koszt i zysk.</p>
     <div class="craft">
@@ -260,6 +265,35 @@ $("#assets").addEventListener("click", (e) => {
   renderAssets(); U.toast("Zapisano opłatę" + (x.fee ? " " + money(x.fee) + " jako wydatek" : ""));
 });
 renderBuy(); renderAssets();
+/* import: data (opcjonalnie), nazwa, kwota, minuty; separatory ; , tab albo spacje; liczby z odstępami tysięcy */
+function parseImport(text) {
+  const out = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/^[\s•*\-–]+(?=\D)/, "").trim(); if (!line || /^data;|^date/i.test(line)) continue;
+    const parts = line.includes(";") || line.includes("\t") ? line.split(/[;\t]/).map((x) => x.trim()) : null;
+    let at = Date.now(), job, amt, min = 0;
+    if (parts) {
+      const di = parts.findIndex((p) => /^\d{1,4}[.\-/]\d{1,2}[.\-/]\d{2,4}/.test(p));
+      if (di >= 0) { const m = parts[di].match(/^(\d{1,4})[.\-/](\d{1,2})[.\-/](\d{2,4})/); const [a, b, c] = [+m[1], +m[2], +m[3]]; const d = a > 31 ? new Date(a, b - 1, c, 12) : new Date(c < 100 ? 2000 + c : c, b - 1, a, 12); if (!isNaN(d)) at = d.getTime(); parts.splice(di, 1); }
+      const nums = parts.map((p) => p.replace(/[$\s ]/g, "").replace(",", ".")).map((p) => (/^-?\d+(\.\d+)?$/.test(p) ? +p : null));
+      job = parts.find((p, i) => nums[i] === null && p); const ns = nums.filter((n) => n !== null); amt = ns[0]; min = ns[1] || 0;
+    } else {
+      // spacje: grupy po 3 cyfry należą do kwoty tylko, gdy kwota zaczyna się od 1–3 cyfr („7 500 30” = 7500 i 30 min)
+      const tk = line.split(/\s+/), i = tk.findIndex((t) => /^-?\$?\d/.test(t)); if (i < 1) continue;
+      job = tk.slice(0, i).join(" "); let num = tk[i].replace(/\$/g, ""), j = i + 1;
+      if (/^-?\d{1,3}$/.test(num)) while (j < tk.length && /^\d{3}$/.test(tk[j])) num += tk[j++];
+      amt = +num.replace(",", "."); min = tk[j] && /^\d+(min|m)?$/i.test(tk[j]) ? parseInt(tk[j], 10) : 0;
+    }
+    if (!job || !Number.isFinite(amt) || !amt) continue;
+    out.push({ id: uid(), job: job.slice(0, 40), amt: Math.round(amt), min: Math.round(min), at, ...(amt < 0 ? { kind: "exp" } : {}) });
+  }
+  return out;
+}
+$("#imp").addEventListener("input", (e) => { const r = parseImport(e.target.value); $("#imp-prev").textContent = r.length ? `Rozpoznano ${r.length} wpisów, razem ${money(r.reduce((a, x) => a + x.amt, 0))}` : ""; });
+$("#imp-go").addEventListener("click", () => {
+  const r = parseImport($("#imp").value); if (!r.length) return U.toast("Nie rozpoznałem żadnego wpisu");
+  log.push(...r); U.save(KEY, log); $("#imp").value = ""; $("#imp-prev").textContent = ""; render(); U.toast(`Zaimportowano ${r.length} wpisów`);
+});
 $("#out").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { log = log.filter((l) => l.id !== b.dataset.del); U.save(KEY, log); render(); } });
 // po zakończonej sesji główne okno podaje jej długość
 Host.onPayload((p) => {

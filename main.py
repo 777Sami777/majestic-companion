@@ -47,7 +47,7 @@ import webview  # noqa: E402  (musi być po zdjęciu blokady)
 from PIL import Image, ImageGrab  # noqa: E402
 
 APP_NAME = "Majestic Companion"
-APP_VERSION = "2.11.0"
+APP_VERSION = "2.12.0"
 GITHUB_REPO = "777Sami777/majestic-companion"  # "login/repozytorium": aktualizator sprawdza tam najnowsze wydanie
 APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 DATA_DIR = os.path.join(APPDATA, "MajesticMapa")  # ta sama nazwa co wcześniej: znaczniki zostają
@@ -841,8 +841,16 @@ class Api:
         new_dir = os.path.join(tmp, "MajesticCompanion")
         if not os.path.isfile(os.path.join(new_dir, "MajesticCompanion.exe")):
             return {"ok": False, "error": "Pobrany plik nie zawiera aplikacji"}
+        self._swap_files(new_dir, tmp, backup=True)
+        return {"ok": True, "version": info["latest"]}
+
+    def _swap_files(self, src, tmp, backup=False):
+        """Skrypt czeka na zamknięcie aplikacji, (opcjonalnie) odkłada obecną wersję obok, kopiuje src i uruchamia ją ponownie."""
         app_dir = os.path.dirname(sys.executable)
+        prev = app_dir.rstrip("\\/") + "_poprzednia"
         bat = os.path.join(tmp, "aktualizuj.bat")
+        keep = (f'robocopy "{app_dir}" "{prev}" /mir /r:5 /w:1 /njh /njs /nfl /ndl /np >> %LOG%\n'
+                f'echo {APP_VERSION}> "{os.path.join(prev, "wersja.txt")}"\n') if backup else ""
         with open(bat, "w", encoding="mbcs") as f:
             f.write(f"""@echo off
 set LOG="{os.path.join(tmp, 'aktualizuj.log')}"
@@ -855,8 +863,8 @@ if %n% geq 40 taskkill /f /im MajesticCompanion.exe >> %LOG% 2>&1
 ping -n 2 127.0.0.1 >nul
 goto wait
 :copy
-echo kopiuje >> %LOG%
-robocopy "{new_dir}" "{app_dir}" /e /r:15 /w:1 /njh /njs /nfl /ndl /np >> %LOG%
+{keep}echo kopiuje >> %LOG%
+robocopy "{src}" "{app_dir}" {"/e" if backup else "/mir /xf wersja.txt"} /r:15 /w:1 /njh /njs /nfl /ndl /np >> %LOG%
 echo robocopy %errorlevel% >> %LOG%
 start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
 """)
@@ -871,7 +879,27 @@ start "" "{os.path.join(app_dir, 'MajesticCompanion.exe')}"
             subprocess.Popen(["cmd", "/c", bat], creationflags=0x00000008 | 0x00000200 | 0x08000000, close_fds=True)
         threading.Timer(0.8, self.quit_app).start()
         threading.Timer(5, os._exit, (0,)).start()  # na pewno zamknij proces, inaczej skrypt czeka w nieskończoność
-        return {"ok": True, "version": info["latest"]}
+
+    def previous_version(self):
+        """Wersja odłożona przy ostatniej aktualizacji (do cofnięcia) albo None."""
+        if not getattr(sys, "frozen", False):
+            return None
+        p = os.path.join(os.path.dirname(sys.executable).rstrip("\\/") + "_poprzednia", "wersja.txt")
+        try:
+            with open(p, encoding="utf-8", errors="ignore") as f:
+                v = f.read().strip()
+            return v if os.path.isfile(os.path.join(os.path.dirname(p), "MajesticCompanion.exe")) else None
+        except OSError:
+            return None
+
+    def rollback(self):
+        v = self.previous_version()
+        if not v:
+            return {"ok": False, "error": "Brak poprzedniej wersji"}
+        tmp = os.path.join(os.environ.get("TEMP", DATA_DIR), "majestic_update")
+        os.makedirs(tmp, exist_ok=True)
+        self._swap_files(os.path.dirname(sys.executable).rstrip("\\/") + "_poprzednia", tmp)
+        return {"ok": True, "version": v}
 
     def open_url(self, url):
         if str(url).startswith("https://github.com/"):
@@ -1110,6 +1138,10 @@ def _sync_installed_version():
 
 
 def main():
+    if "--version-file" in sys.argv:  # test po zbudowaniu (GitHub Actions): zapisz wersję i zakończ
+        with open(sys.argv[sys.argv.index("--version-file") + 1], "w", encoding="utf-8") as f:
+            f.write(APP_VERSION)
+        return
     os.makedirs(SHOTS_DIR, exist_ok=True)
     _sync_installed_version()
     api = Api()

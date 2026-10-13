@@ -470,6 +470,7 @@ if (!store.get("majestic-kreator-v1", false) && !store.get("majestic-samouczek-v
 else if (!store.get("majestic-samouczek-v1", false)) setTimeout(showTour, 1500);
 /* „Co nowego” po aktualizacji */
 const CHANGES = {
+  "2.12.0": ["Cofnij aktualizację jednym kliknięciem (Ustawienia → Uruchamianie)", "Odległość i czas dojazdu od „Tu jestem” na karcie miejsca", "Limit gry dziennie z ostrzeżeniem", "Archiwum miesiąca w Ekipie", "Własny motyw: kolor akcentu, tło, obrazek", "Zadania na dziś w widżecie", "Import zarobków z Discorda / CSV", "Wydania budowane i testowane automatycznie na GitHubie"],
   "2.11.0": ["Ustawienia w zakładkach (Wygląd / Gra / Ekipa / Dane) z wyszukiwarką", "Skarbiec organizacji w Ekipie, widoczny dla całej ekipy", "Wspólna lista zakupów z informacją, kto co kupił", "Notatki głosowe przy znacznikach na mapie", "Wykres majątku z 12 tygodni (Zarobki)", "Newsy Majestic w kalendarzu", "Przewodnik nowego gracza z przyciskiem „Pokaż”", "Wersja angielska: prawie wszystkie napisy", "Poprawka: zmiany od ekipy nie giną, gdy zakładka Ekipa jest zamknięta"],
   "2.10.1": ["Nowy instalator w stylu aplikacji: wybór folderu, skróty, start z Windowsem", "Instalacja działa także, gdy aplikacja jest włączona"],
   "2.10.0": ["Własne skróty Ctrl+Shift+litera (Ustawienia → Skróty w grze)", "Planer sesji krok po kroku (Minutniki), widoczny też w widżecie", "Wyszukiwarka szuka pojazdów, nieruchomości i przepisów z wiki", "Warstwy tras i stref na mapie, każdą można ukryć", "Historia cen pojazdów: strzałka ▲▼ przy cenie", "Ekipa: porównanie $/h i najlepszej pracy, ranking na Discorda, kod ekipy jako QR", "Historia postaci do PDF (karta, dziennik, galeria)", "Motyw według pory dnia"],
@@ -531,6 +532,17 @@ async function loadWikiSearch() {
   try { const r = await a.wiki_list("realties"); ((r && r.items) || r || []).forEach((x) => Array.isArray(x.mapPosition) && wikiSearch.push({ kind: "Nieruchomość", text: (x.type === "house" ? "Dom " : x.type === "apartment" ? "Mieszkanie " : "Lokal ") + x.serial, sub: x.price ? "$" + x.price.toLocaleString("pl-PL") + (x.garageSlots ? " · garaż " + x.garageSlots : "") : "", go: () => show("mapa", { goto: x.mapPosition, label: (x.type === "house" ? "Dom " : "Lokal ") + x.serial }) })); } catch {}
   if (!$("#search").hidden) renderSearch();
 }
+/* limit gry dziennie: dzisiejsze sesje z logów + bieżąca; ostrzeżenie 15 min przed i po przekroczeniu (raz dziennie) */
+async function playLimit() {
+  const lim = +(store.get("majestic-wyglad-v1", {}).playLimit || 0), a = api(); if (!lim || !a) return;
+  let mins = 0; const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  try { mins = ((await a.sessions()).sessions || []).filter((s) => s.connected && s.joined >= d0.getTime()).reduce((x, s) => x + s.played, 0) / 60; } catch { return; }
+  const key = "majestic-limit-dzien-v1", st = store.get(key, {}), day = d0.toDateString(), seen = st.day === day ? st : { day };
+  if (mins >= lim * 60 - 15 && !seen.warn) { seen.warn = 1; a.notify("Za 15 minut limit gry", `Dziś grasz już ${Math.round(mins)} min z ${lim * 60}.`); }
+  if (mins >= lim * 60 && !seen.over) { seen.over = 1; a.notify("Limit gry osiągnięty", `Dziś ${Math.round(mins / 6) / 10} h. Czas na przerwę!`); }
+  store.set(key, seen);
+}
+setTimeout(playLimit, 30000); setInterval(playLimit, 300000);
 /* przypomnienia cykliczne: co tydzień o godzinie albo co X dni; sprawdzane co minutę */
 function nextDue(r, from) {
   const [h, m] = (r.time || "20:00").split(":").map(Number), d = new Date(from); d.setSeconds(0, 0); d.setHours(h, m);

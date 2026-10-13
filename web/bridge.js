@@ -75,6 +75,12 @@
     root.classList.toggle("light", LIGHTISH.includes(th));
     root.dataset.theme = THEMES[th] ? th : "mdt";
     Object.entries(t).forEach(([k, v]) => k.startsWith("--") && root.style.setProperty(k, v));
+    if (p.bgColor) root.style.setProperty("--bg", p.bgColor);
+    // obrazek w tle: przyciemniony kolorem tła, żeby tekst dalej był czytelny
+    let bgs = document.getElementById("bg-img");
+    if (p.bgImg && !embedded) { if (bgs) bgs.remove(); }
+    else if (p.bgImg) { if (!bgs) { bgs = document.createElement("style"); bgs.id = "bg-img"; document.head.appendChild(bgs); } bgs.textContent = `html,body{background:linear-gradient(color-mix(in srgb,var(--bg) 86%,transparent),color-mix(in srgb,var(--bg) 86%,transparent)),url("${String(p.bgImg).replace(/["\\]/g, "")}") center/cover fixed!important}`; }
+    else if (bgs) bgs.remove();
     const accent = p.accent || t.accent || "";
     if (accent) root.style.setProperty("--accent", accent); else root.style.removeProperty("--accent");
     // mapa bez powiększenia: Leaflet źle liczy kliknięcia przy CSS zoom

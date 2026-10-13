@@ -365,7 +365,7 @@ function renderCard(m) {
   showCard(`<div class="card-hero" style="--c:${markerColor(m)}">
       <span class="card-badge">${ico(markerIcon(m))}${esc(c?.name || "Znacznik")}</span>
       <button class="fav-btn ${m.fav ? "on" : ""}" id="fav" title="Ulubione">${ico("star")}</button>
-      <h3 class="card-title">${esc(m.name)}</h3>
+      <h3 class="card-title">${esc(m.name)}</h3>${meMarker ? ((d) => `<p style="margin:2px 0 0;font-size:12.5px;opacity:.85">Od Ciebie: ${fmtDist(d)} · ${tripInfo(d)}</p>`)(Math.hypot(meMarker.getLatLng().lat - m.y, meMarker.getLatLng().lng - m.x)) : ""}
       <div class="card-coords"><span>X <b>${m.x}</b></span><span>Y <b>${m.y}</b></span><button class="copy-btn" id="copy">Kopiuj</button><button class="copy-btn" id="share" title="Kod do wysłania znajomym">Kod</button></div>
       ${contactsHtml(m)}
     </div>

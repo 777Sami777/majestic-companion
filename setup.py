@@ -85,6 +85,8 @@ def install(dest, opts, report):
                         time.sleep(0.5)
             if i % 20 == 0:
                 report(4 + 84 * i / len(names), "Kopiuję pliki… " + rel.split("/")[-1][:40])
+    if opts.get("test"):  # test po zbudowaniu: tylko pliki
+        return exe
     report(90, "Tworzę skróty…")
     desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
     start = os.path.join(os.environ["APPDATA"], "Microsoft", "Windows", "Start Menu", "Programs")
@@ -292,6 +294,12 @@ def tk_main():
 
 
 def main():
+    if "--test" in sys.argv:  # MajesticCompanionSetup.exe --test FOLDER: instalacja bez okna, kod wyjścia 0/1
+        try:
+            install(sys.argv[sys.argv.index("--test") + 1], {"test": True}, lambda p, t: None)
+            sys.exit(0)
+        except Exception:
+            sys.exit(1)
     try:
         import webview
         api = Api()
